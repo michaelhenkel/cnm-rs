@@ -1,0 +1,6 @@
+apiVersion: cnm.juniper.net/v1
+kind: RoutingInstance
+metadata:
+  name: ri1
+spec:
+  info: infofield
