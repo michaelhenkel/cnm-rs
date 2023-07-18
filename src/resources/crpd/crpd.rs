@@ -11,6 +11,7 @@ use kube::{
     Client, CustomResource,
 };
 use async_trait::async_trait;
+use k8s_openapi::api::apps::v1 as apps_v1;
 use k8s_openapi::Metadata;
 use kube::api::ObjectMeta;
 
@@ -22,16 +23,15 @@ use crate::resources::resources::Resource;
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
 pub struct CrpdSpec {
     #[garde(skip)]
-    replicas: i32,
+    pub replicas: i32,
     #[garde(skip)]
-    image: String,
+    pub image: String,
 }
 
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 pub struct CrpdStatus {
-    is_bad: bool,
-    replicas: i32,
+    pub deployment: Option<apps_v1::DeploymentStatus>,
 }
 
 pub struct CrpdResource{
@@ -40,27 +40,6 @@ pub struct CrpdResource{
     group: String,
     version: String,
 }
-
-/*
-impl k8s_openapi::Metadata for Crpd {
-    fn metadata(&self) -> &ObjectMeta {
-        &self.metadata
-    }
-    fn metadata_mut(&mut self) -> &mut ObjectMeta {
-        &mut self.metadata
-    }
-}
-*/
-
-/*
-impl k8s_openapi::Resource for Crpd{
-    const API_VERSION: &'static str = "cnm.juniper.net/v1";
-    const GROUP: &'static str = "cnm.juniper.net";
-    const KIND: &'static str = "Crpd";
-    const VERSION: &'static str = "v1";
-    type Scope = dyn k8s_openapi::ResourceScope;
-}
-*/
 
 
 impl CrpdResource{

@@ -1,0 +1,7 @@
+apiVersion: cnm.juniper.net/v1
+kind: Crpd
+metadata:
+  name: crpd1
+spec:
+  replicas: 1
+  image: registry.default.svc.cluster.local:5000/crpd:23.2R1.13

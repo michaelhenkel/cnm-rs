@@ -11,16 +11,16 @@ async fn main() -> anyhow::Result<()> {
 
     let mut resource_list = Vec::new();
 
-    let ri_res = resources::routing_instance::RoutingInstanceResource::new(client.clone());
-    let res: Box<dyn resources::resources::Resource> = Box::new(ri_res);
+    let crpd_res = resources::crpd::crpd::CrpdResource::new(client.clone());
+    let res: Box<dyn resources::resources::Resource> = Box::new(crpd_res);
     resource_list.push(res);
 
     resources::resources::init_resources(resource_list).await?;
 
     let mut controller_list = Vec::new();
 
-    let ri_controller = controllers::routing_instance::RoutingInstanceController::new(client.clone());
-    let ctrl: Box<dyn controllers::controllers::Controller> = Box::new(ri_controller);
+    let crpd_controller = controllers::crpd::crpd::CrpdController::new(client.clone());
+    let ctrl: Box<dyn controllers::controllers::Controller> = Box::new(crpd_controller);
     controller_list.push(ctrl);
 
     tokio::spawn(async move {
