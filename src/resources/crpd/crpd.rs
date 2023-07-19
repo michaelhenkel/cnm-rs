@@ -1,7 +1,7 @@
 use garde::Validate;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::{time::Duration, collections::BTreeMap};
 use tokio::time::sleep;
 use tracing::*;
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
@@ -14,6 +14,7 @@ use async_trait::async_trait;
 use k8s_openapi::api::apps::v1 as apps_v1;
 use k8s_openapi::Metadata;
 use kube::api::ObjectMeta;
+use std::collections::HashMap;
 
 use crate::resources::resources::Resource;
 
@@ -31,7 +32,8 @@ pub struct CrpdSpec {
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 pub struct CrpdStatus {
-    pub deployment: Option<apps_v1::DeploymentStatus>,
+    pub stateful_set: Option<apps_v1::StatefulSetStatus>,
+    pub addresses: Option<BTreeMap<String, String>>,
 }
 
 pub struct CrpdResource{

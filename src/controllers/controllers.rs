@@ -4,10 +4,11 @@ use k8s_openapi::NamespaceResourceScope;
 use kube::api::{ObjectMeta, PostParams};
 use serde::de::DeserializeOwned;
 use tracing::info;
+use std::collections::BTreeMap;
 use std::{fmt::Debug, borrow::BorrowMut};
 use std::sync::Arc;
 use serde::Serialize;
-use kube::api::{Patch, PatchParams};
+use kube::api::{Patch, PatchParams, ListParams, ObjectList};
 
 
 
@@ -121,6 +122,32 @@ T: Clone + DeserializeOwned + Debug,
     Ok(res)
 }
 
+pub async fn list<T: kube::Resource>(namespace: &str, client: Client, labels: Option<BTreeMap<String, String>>) -> Result<Option<(ObjectList<T>,Api<T>)>, ReconcileError>
+where
+T: kube::Resource<Scope = NamespaceResourceScope>,
+<T as kube::Resource>::DynamicType: Default,
+T: Clone + DeserializeOwned + Debug,
+{
+    let res_api: Api<T> = Api::namespaced(client.clone(), namespace);
+    let mut list_params = ListParams::default();
+    for (k, v) in labels.unwrap().iter(){
+        list_params.label_selector = Some(format!("{}={}", k, v));
+    }
+    let res = match res_api.list(&list_params).await{
+        Ok(res) => {
+            Some((res, res_api))
+        },
+        Err(e) => {
+            if is_not_found(&e){
+                None
+            } else {
+                return Err(ReconcileError(e.into()));
+            }
+        },
+    };
+    Ok(res)
+}
+
 pub async fn create<T: kube::Resource>(t: Arc<T>, client: Client) -> Result<Option<T>, ReconcileError>
 where
 T: kube::Resource<Scope = NamespaceResourceScope>,
@@ -144,7 +171,34 @@ T: Clone + DeserializeOwned + Debug + Serialize,
     Ok(res)
 }
 
-pub async fn patch<T: kube::Resource>(mut t: T, client: Client) -> Result<Option<T>, ReconcileError>
+pub async fn patch<T: kube::Resource>(t: T, client: Client) -> Result<Option<T>, ReconcileError>
+where
+T: kube::Resource<Scope = NamespaceResourceScope>,
+<T as kube::Resource>::DynamicType: Default,
+T: Clone + DeserializeOwned + Debug + Serialize,
+{
+    //info!("updating resource {:?}", t);
+//t.borrow_mut().meta_mut().managed_fields = None;
+    let patch = Patch::Merge(&t);
+    let params = PatchParams::apply("crpd");
+    let res_api: Api<T> = Api::namespaced(client.clone(), t.meta().namespace.as_ref().unwrap());
+    let res = match res_api.patch(t.meta().name.as_ref().unwrap(), &params, &patch).await{
+        Ok(res) => {
+            Some(res)
+        },
+        Err(e) => {
+            if is_not_found(&e){
+                None
+            } else {
+                info!("Error updating resource: {:?}", t);
+                return Err(ReconcileError(e.into()));
+            }
+        },
+    };
+    Ok(res)
+}
+
+pub async fn replace<T: kube::Resource>(mut t: T, client: Client) -> Result<Option<T>, ReconcileError>
 where
 T: kube::Resource<Scope = NamespaceResourceScope>,
 <T as kube::Resource>::DynamicType: Default,
@@ -152,10 +206,9 @@ T: Clone + DeserializeOwned + Debug + Serialize,
 {
     info!("Updating {:?}", t.meta().name.as_ref().unwrap());
     t.borrow_mut().meta_mut().managed_fields = None;
-    let params = PatchParams::apply("crpd");
-    let patch = Patch::Merge(t.clone());
+    let params = PostParams::default();
     let res_api: Api<T> = Api::namespaced(client.clone(), t.meta().namespace.as_ref().unwrap());
-    let res = match res_api.patch(t.meta().name.as_ref().unwrap(), &params, &patch).await{
+    let res = match res_api.replace(t.meta().name.as_ref().unwrap(), &params, &t).await{
         Ok(res) => {
             Some(res)
         },
@@ -179,7 +232,7 @@ T: Clone + DeserializeOwned + Debug + Serialize,
     match get(Arc::new(t.clone()), client.clone()).await{
         Ok(res) => {
             match res{
-                Some((_, _)) => {
+                Some((mut current, _)) => {                    
                     patch(t, client).await
                 },
                 None => {
@@ -193,23 +246,23 @@ T: Clone + DeserializeOwned + Debug + Serialize,
     }
 }
 
-pub async fn update_status<T: kube::Resource, P>(t: T, p: P, client: Client) -> Result<Option<T>, ReconcileError>
+pub async fn update_status<T: kube::Resource>(t: T, client: Client) -> Result<Option<T>, ReconcileError>
 where
-P: serde::Serialize + Debug,
 T: kube::Resource<Scope = NamespaceResourceScope>,
 <T as kube::Resource>::DynamicType: Default,
 T: Clone + DeserializeOwned + Debug + Serialize,
 {
     info!("Updating Status {:?}", t.meta().name.as_ref().unwrap());
     let params = PatchParams::apply("crpd");
-    let patch = Patch::Merge(p);
+    let patch = Patch::Merge(t.clone());
     let res_api: Api<T> = Api::namespaced(client.clone(), t.meta().namespace.as_ref().unwrap());
-    let res = match res_api.patch_status(t.meta().name.as_ref().unwrap(), &params, &patch).await{
+    let res = match res_api.patch_status(t.clone().meta().name.as_ref().unwrap(), &params, &patch).await{
         Ok(res) => {
             Some(res)
         },
         Err(e) => {
             if is_not_found(&e){
+                info!("status not found: {:?}", e);
                 None
             } else {
                 return Err(ReconcileError(e.into()));

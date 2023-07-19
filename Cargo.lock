@@ -169,6 +169,7 @@ dependencies = [
  "either",
  "futures",
  "garde",
+ "json-patch",
  "k8s-openapi",
  "kube",
  "schemars",

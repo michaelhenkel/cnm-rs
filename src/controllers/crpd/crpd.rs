@@ -38,34 +38,65 @@ impl CrpdController{
             Ok(res) => {
                 match res{
                     Some((mut crpd, _crpd_api)) => {
-                        let deployment = apps_v1::Deployment::from(crpd.clone());
-                        match controllers::create_or_update(deployment.clone(), ctx.client.clone()).await{
-                            Ok(deployment) => {
-                                info!("deployment created");
+                        let sts = apps_v1::StatefulSet::from(crpd.clone());
+                        match controllers::create_or_update(sts.clone(), ctx.client.clone()).await{
+                            Ok(sts) => {
+                                info!("sts created");
                             },
                             Err(e) => {
                                 return Err(e);
                             },
                         }
-                        match controllers::get(Arc::new(deployment), ctx.client.clone()).await{
+                        match controllers::get(Arc::new(sts), ctx.client.clone()).await{
                             Ok(res) => {
                                 match res{
-                                    Some((deployment, _)) => {
+                                    Some((sts, _)) => {
                                         let status = match crpd.clone().status{
                                             Some(mut status) => {
-                                                status.deployment = deployment.status.clone();
+                                                status.stateful_set = sts.status.clone();
                                                 status
                                             },
                                             None => {
                                                 let status = Some(CrpdStatus{
-                                                    deployment: deployment.status.clone(),
+                                                    stateful_set: sts.status.clone(),
+                                                    ..Default::default()
                                                 });
                                                 status.unwrap()
                                             },
                                         };
-                                        match controllers::update_status(crpd, status, ctx.client.clone()).await{
+                                        crpd.status = Some(status.clone());
+                                        let labels = BTreeMap::from_iter(vec![
+                                            ("app".to_string(), "crpd".to_string()),
+                                            ("crpd".to_string(), crpd.metadata.name.as_ref().unwrap().clone()),
+                                        ]);
+                                        let mut pod_address_map = BTreeMap::new();
+                                        match controllers::list::<core_v1::Pod>(
+                                            sts.meta().namespace.as_ref().unwrap().as_str(),
+                                            ctx.client.clone(),
+                                            Some(labels))
+                                            .await{
+                                                Ok(pod_list) => {
+                                                    match pod_list {
+                                                        Some((pod_list, _)) => {
+                                                            for pod in pod_list.items{
+                                                                if pod.status.as_ref().unwrap().pod_ip.is_some(){
+                                                                    let ip = pod.status.as_ref().unwrap().pod_ip.as_ref().unwrap().clone();
+                                                                    pod_address_map.insert(pod.meta().name.as_ref().unwrap().clone(), ip);
+                                                                }
+                                                            }
+                                                        },
+                                                        None => {},
+                                                    }
+                                                },
+                                                Err(e) => {
+                                                    return Err(e);
+                                                },
+                                        }
+                                        crpd.status.as_mut().unwrap().addresses = Some(pod_address_map);
+                                        
+                                        info!("updating crpd status to: {:?}", status.clone());
+                                        match controllers::update_status(crpd, ctx.client.clone()).await{
                                             Ok(crpd) => {
-                                                info!("crpd status updated");
                                             },
                                             Err(e) => {
                                                 return Err(e);
@@ -109,15 +140,15 @@ impl Controller for CrpdController{
         };
         runtime_controller::new(self.resource.clone(), Config::default())
             .watches(
-                Api::<apps_v1::Deployment>::all(self.context.client.clone()),
+                Api::<apps_v1::StatefulSet>::all(self.context.client.clone()),
                 Config::default(),
-                |deployment| {
-                    match &deployment.meta().labels{
+                |sts| {
+                    match &sts.meta().labels{
                         Some(labels) => {
                             let res = if labels.contains_key("app") && labels["app"] == "crpd"{
                                 Some(ObjectRef::<Crpd>::new(
-                                    deployment.meta().name.as_ref().unwrap())
-                                    .within(deployment.meta().namespace.as_ref().unwrap()))
+                                    sts.meta().name.as_ref().unwrap())
+                                    .within(sts.meta().namespace.as_ref().unwrap()))
                             } else {
                                 None
                             };
@@ -141,7 +172,7 @@ impl Controller for CrpdController{
     }
 }
 
-impl From<Crpd> for apps_v1::Deployment{
+impl From<Crpd> for apps_v1::StatefulSet{
     fn from(crpd: Crpd) -> Self{
         let mut labels = match crpd.metadata.clone().labels{
             Some(labels) => {
@@ -154,7 +185,7 @@ impl From<Crpd> for apps_v1::Deployment{
         labels.insert("app".to_string(), "crpd".to_string());
         labels.insert("crpd".to_string(), crpd.metadata.name.as_ref().unwrap().clone());
 
-        apps_v1::Deployment{
+        apps_v1::StatefulSet{
             metadata: meta_v1::ObjectMeta{
                 name: Some(crpd.metadata.name.as_ref().unwrap().clone()),
                 namespace: crpd.metadata.namespace,
@@ -168,11 +199,11 @@ impl From<Crpd> for apps_v1::Deployment{
                 }]),
                 ..Default::default()
             },
-            spec: Some(apps_v1::DeploymentSpec{
+            spec: Some(apps_v1::StatefulSetSpec{
                 replicas: Some(crpd.spec.replicas),
                 selector: meta_v1::LabelSelector { 
                     match_expressions: None,
-                    match_labels: Some(labels.clone()),
+                    match_labels: Some(BTreeMap::from([("crpd".to_string(), crpd.metadata.name.as_ref().unwrap().clone())])),
                 },
                 template: core_v1::PodTemplateSpec { 
                     metadata: Some(meta_v1::ObjectMeta {
@@ -180,7 +211,18 @@ impl From<Crpd> for apps_v1::Deployment{
                         ..Default::default()
                      }),
                     spec: Some(core_v1::PodSpec{
+                        host_network: Some(true),
+                        tolerations: Some(vec![core_v1::Toleration{
+                            effect: Some("NoSchedule".to_string()),
+                            key: Some("node-role.kubernetes.io/master".to_string()),
+                            operator: Some("Exists".to_string()),
+                            ..Default::default()
+                        }]),
                         containers: vec![core_v1::Container{
+                            ports: Some(vec![core_v1::ContainerPort{
+                                container_port: 179,
+                                ..Default::default()
+                            }]),
                             name: "crpd".to_string(),
                             image: Some(crpd.spec.image),
                             security_context: Some(core_v1::SecurityContext{
