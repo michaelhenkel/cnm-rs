@@ -172,6 +172,7 @@ dependencies = [
  "json-patch",
  "k8s-openapi",
  "kube",
+ "kube-runtime",
  "schemars",
  "serde",
  "serde_json",

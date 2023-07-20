@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 kube = { version = "0.84.0", features = ["runtime", "derive"] }
+kube-runtime = { version = "0.84.0", features = ["unstable-runtime-predicates","unstable-runtime-stream-control"] }
 k8s-openapi = { version = "0.18.0", features = ["v1_26","schemars"] }
 serde = { version = "1.0.130", features = ["derive"] }
 serde_json = "1.0.68"
@@ -21,3 +22,10 @@ tracing = "0.1.36"
 tracing-subscriber = "0.3.3"
 async-trait = "0.1.71"
 json-patch = "1.0.0"
+
+[features]
+unstable-runtime = ["unstable-runtime-subscribe", "unstable-runtime-predicates", "unstable-runtime-stream-control", "unstable-runtime-reconcile-on"]
+unstable-runtime-subscribe = []
+unstable-runtime-predicates = []
+unstable-runtime-stream-control = []
+unstable-runtime-reconcile-on = []

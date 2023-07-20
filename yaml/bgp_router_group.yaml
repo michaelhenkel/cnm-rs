@@ -1,0 +1,11 @@
+apiVersion: cnm.juniper.net/v1
+kind: BgpRouterGroup
+metadata:
+  name: crpd1
+  labels:
+    cnm.juniper.net/bgpRouterType: Crpd
+spec:
+  bgpRouterTemplate:
+    autonomousSystemNumber: 1
+    addressFamilies:
+    - Inet

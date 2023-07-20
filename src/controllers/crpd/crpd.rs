@@ -1,5 +1,5 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError, self};
-use crate::resources::crpd::crpd::{Crpd, CrpdStatus};
+use crate::resources::crpd::crpd::{Crpd, CrpdStatus, Instance};
 use async_trait::async_trait;
 use futures::StreamExt;
 use kube::Resource;
@@ -34,7 +34,10 @@ impl CrpdController{
         CrpdController{context, resource}
     }
     async fn reconcile(g: Arc<Crpd>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
-        match controllers::get(g.clone(), ctx.client.clone()).await{
+        match controllers::get::<Crpd>(g.meta().namespace.as_ref().unwrap().clone(),
+            g.meta().name.as_ref().unwrap().clone(),
+            ctx.client.clone())
+            .await{
             Ok(res) => {
                 match res{
                     Some((mut crpd, _crpd_api)) => {
@@ -47,7 +50,10 @@ impl CrpdController{
                                 return Err(e);
                             },
                         }
-                        match controllers::get(Arc::new(sts), ctx.client.clone()).await{
+                        match controllers::get::<apps_v1::StatefulSet>(sts.meta().namespace.as_ref().unwrap().clone(),
+                            sts.meta().name.as_ref().unwrap().clone(),
+                            ctx.client.clone())
+                            .await{
                             Ok(res) => {
                                 match res{
                                     Some((sts, _)) => {
@@ -69,7 +75,7 @@ impl CrpdController{
                                             ("app".to_string(), "crpd".to_string()),
                                             ("crpd".to_string(), crpd.metadata.name.as_ref().unwrap().clone()),
                                         ]);
-                                        let mut pod_address_map = BTreeMap::new();
+                                        let mut instances = Vec::new();
                                         match controllers::list::<core_v1::Pod>(
                                             sts.meta().namespace.as_ref().unwrap().as_str(),
                                             ctx.client.clone(),
@@ -80,8 +86,12 @@ impl CrpdController{
                                                         Some((pod_list, _)) => {
                                                             for pod in pod_list.items{
                                                                 if pod.status.as_ref().unwrap().pod_ip.is_some(){
-                                                                    let ip = pod.status.as_ref().unwrap().pod_ip.as_ref().unwrap().clone();
-                                                                    pod_address_map.insert(pod.meta().name.as_ref().unwrap().clone(), ip);
+                                                                    let instance = Instance{
+                                                                        name: pod.meta().name.as_ref().unwrap().clone(),
+                                                                        address: pod.status.as_ref().unwrap().pod_ip.as_ref().unwrap().clone(),
+                                                                        uuid: pod.meta().uid.as_ref().unwrap().clone(),
+                                                                    };
+                                                                    instances.push(instance);
                                                                 }
                                                             }
                                                         },
@@ -92,9 +102,7 @@ impl CrpdController{
                                                     return Err(e);
                                                 },
                                         }
-                                        crpd.status.as_mut().unwrap().addresses = Some(pod_address_map);
-                                        
-                                        info!("updating crpd status to: {:?}", status.clone());
+                                        crpd.status.as_mut().unwrap().instances = Some(instances);                                        
                                         match controllers::update_status(crpd, ctx.client.clone()).await{
                                             Ok(crpd) => {
                                             },

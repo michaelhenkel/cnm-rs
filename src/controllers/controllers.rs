@@ -99,14 +99,14 @@ pub fn already_exists(e: &Error) -> bool {
 
 //Result<Option<T>, ReconcileError>
 
-pub async fn get<T: kube::Resource>(t: Arc<T>, client: Client) -> Result<Option<(T,Api<T>)>, ReconcileError>
+pub async fn get<T: kube::Resource>(namespace: String, name: String, client: Client) -> Result<Option<(T,Api<T>)>, ReconcileError>
 where
 T: kube::Resource<Scope = NamespaceResourceScope>,
 <T as kube::Resource>::DynamicType: Default,
 T: Clone + DeserializeOwned + Debug,
 {
-    let res_api: Api<T> = Api::namespaced(client.clone(), t.meta().namespace.as_ref().unwrap());
-    let res = match res_api.get(t.meta().name.as_ref().unwrap().as_str()).await{
+    let res_api: Api<T> = Api::namespaced(client.clone(), namespace.as_str());
+    let res = match res_api.get(name.as_str()).await{
         Ok(res) => {
             info!("Found resource: {:?}", res.meta().name.as_ref().unwrap());
             Some((res, res_api))
@@ -229,7 +229,7 @@ T: kube::Resource<Scope = NamespaceResourceScope>,
 <T as kube::Resource>::DynamicType: Default,
 T: Clone + DeserializeOwned + Debug + Serialize,
 {
-    match get(Arc::new(t.clone()), client.clone()).await{
+    match get::<T>(t.meta().namespace.as_ref().unwrap().clone(), t.meta().name.as_ref().unwrap().clone(), client.clone()).await{
         Ok(res) => {
             match res{
                 Some((mut current, _)) => {                    
@@ -253,10 +253,10 @@ T: kube::Resource<Scope = NamespaceResourceScope>,
 T: Clone + DeserializeOwned + Debug + Serialize,
 {
     info!("Updating Status {:?}", t.meta().name.as_ref().unwrap());
-    let params = PatchParams::apply("crpd");
-    let patch = Patch::Merge(t.clone());
+    let patch = serde_json::to_vec(&t).unwrap();
+    let params = PostParams::default();
     let res_api: Api<T> = Api::namespaced(client.clone(), t.meta().namespace.as_ref().unwrap());
-    let res = match res_api.patch_status(t.clone().meta().name.as_ref().unwrap(), &params, &patch).await{
+    let res = match res_api.replace_status(t.clone().meta().name.as_ref().unwrap(), &params, patch).await{
         Ok(res) => {
             Some(res)
         },

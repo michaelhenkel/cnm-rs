@@ -1,9 +1,10 @@
 use garde::Validate;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{time::Duration, collections::BTreeMap};
+use std::time::Duration;
 use tokio::time::sleep;
 use tracing::*;
+
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
 use kube::{
     api::{Api, PostParams, ResourceExt},
@@ -11,84 +12,41 @@ use kube::{
     Client, CustomResource,
 };
 use async_trait::async_trait;
-use k8s_openapi::api::apps::v1 as apps_v1;
-use k8s_openapi::Metadata;
-use kube::api::ObjectMeta;
-use std::collections::HashMap;
 
 use crate::resources::resources::Resource;
+use crate::resources::bgp_router::{BgpRouterSpec, BgpRouterType};
+use k8s_openapi::api::core::v1 as core_v1;
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
-#[kube(group = "cnm.juniper.net", version = "v1", kind = "Crpd", namespaced)]
-#[kube(status = "CrpdStatus")]
+#[kube(group = "cnm.juniper.net", version = "v1", kind = "BgpRouterGroup", namespaced)]
+#[kube(status = "BgpRouterGroupStatus")]
+#[serde(rename_all = "camelCase")]
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
-pub struct CrpdSpec {
+pub struct BgpRouterGroupSpec {
+    #[schemars(length(min = 1))]
     #[garde(skip)]
-    pub replicas: i32,
-    #[garde(skip)]
-    pub image: String,
-}
-
-
-#[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
-pub struct CrpdStatus {
-    pub stateful_set: Option<apps_v1::StatefulSetStatus>,
-    pub instances: Option<Vec<Instance>>,
+    pub bgp_router_template: BgpRouterSpec,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
-pub struct Instance{
-    pub name: String,
-    pub address: String,
-    pub uuid: String,
+#[serde(rename_all = "camelCase")]
+pub struct BgpRouterGroupStatus {
+    pub bgp_router_references: Vec<core_v1::ObjectReference>,
 }
 
-fn set_listable_schema(_: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
-    serde_json::from_value(serde_json::json!({
-        "type": "object",
-        "properties": {
-            "addresses": {
-                "type": "object",
-                "additionalProperties": {
-                    "type": "string"
-                },
-            }
-        },
-        "x-kubernetes-list-type": "map"
-    }))
-    .unwrap()
-}
-
-/*
-    type: object
-    properties:
-      spec:
-        type: object
-        x-kubernetes-validations:
-          - rule: "self['xyz'].foo > 0"
-        additionalProperties:
-          ...
-          type: object
-          properties:
-            foo:
-              type: integer
-
-*/
-
-pub struct CrpdResource{
+pub struct BgpRouterGroupResource{
     client: Client,
     name: String,
     group: String,
     version: String,
 }
 
-
-impl CrpdResource{
+impl BgpRouterGroupResource{
     pub fn new(client: Client) -> Self{
-        let name = "crpd".to_string();
+        let name = "bgproutergroups".to_string();
         let group = "cnm.juniper.net".to_string();
         let version = "v1".to_string();
-        CrpdResource{
+        BgpRouterGroupResource{
             client,
             name,
             group,
@@ -98,7 +56,7 @@ impl CrpdResource{
 }
 
 #[async_trait]
-impl Resource for CrpdResource{
+impl Resource for BgpRouterGroupResource{
     fn client(&self) -> Client{
         self.client.clone()
     }
@@ -113,7 +71,7 @@ impl Resource for CrpdResource{
     }
     async fn create(&self) -> anyhow::Result<()>{
         let crds: Api<CustomResourceDefinition> = Api::all(self.client.clone());
-        let crd = Crpd::crd();
+        let crd = BgpRouterGroup::crd();
         info!("Creating CRD: {}",self.name);
         let pp = PostParams::default();
         match crds.create(&pp, &crd).await {
