@@ -39,6 +39,10 @@ async fn main() -> anyhow::Result<()> {
     let ctrl: Box<dyn controllers::controllers::Controller> = Box::new(crpd_bgp_router_group_controller);
     controller_list.push(ctrl);
 
+    let junos_configuration_controller = controllers::crpd::junos_configuration::JunosConfigurationController::new(client.clone());
+    let ctrl: Box<dyn controllers::controllers::Controller> = Box::new(junos_configuration_controller);
+    controller_list.push(ctrl);
+
     tokio::spawn(async move {
         controllers::controllers::init_controllers(controller_list).await
     }).await??;

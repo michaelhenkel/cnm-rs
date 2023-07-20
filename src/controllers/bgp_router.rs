@@ -1,20 +1,19 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
-use crate::resources::bgp_router::BgpRouter;
+use crate::resources::bgp_router::{BgpRouter, BgpRouterStatus, BgpPeeringReference, BgpSessionAttributes};
 use crate::resources::bgp_router_group::BgpRouterGroup;
-use kube::runtime::reflector::ObjectRef;
+use crate::controllers::controllers;
 use async_trait::async_trait;
 use futures::StreamExt;
 use kube::{
+    Resource,
     api::Api,
     client::Client,
     runtime::{
         controller::{Action, Controller as runtime_controller},
         watcher::Config,
-        watcher,
-        predicates,
+        reflector::ObjectRef,
     },
 };
-use kube::runtime::WatchStreamExt;
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
@@ -33,6 +32,62 @@ impl BgpRouterController{
         BgpRouterController{context, resource}
     }
     async fn reconcile(g: Arc<BgpRouter>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
+        info!("reconciling BgpRouter {:?}", g.meta());
+        match controllers::get::<BgpRouter>(
+            g.meta().namespace.as_ref().unwrap().clone(),
+            g.meta().name.as_ref().unwrap().clone(),
+            ctx.client.clone())
+            .await{
+            Ok(res) => {
+                match res{
+                    Some((mut bgp_router, _bgp_router_api)) => {
+                        if let Some(labels) = &bgp_router.meta().labels{
+                            if let Some(bgp_router_group_name) = labels.get("cnm.juniper.net/bgpRouterGroup"){
+                                if let Ok(res) = controllers::get::<BgpRouterGroup>(bgp_router.meta().namespace.as_ref().unwrap().clone(), bgp_router_group_name.to_string(), ctx.client.clone()).await{
+                                    if let Some((bgp_router_group, _)) = res{
+                                        if let Some(bgp_router_group_status) = bgp_router_group.status{
+                                            let mut bgp_peering_references = Vec::new();
+                                            for bgp_router_reference in &bgp_router_group_status.bgp_router_references{
+                                                if bgp_router_reference.bgp_router_reference.name.as_ref().unwrap().clone() != bgp_router.meta().name.as_ref().unwrap().clone(){
+                                                    let bgp_peering_reference = BgpPeeringReference{
+                                                        peer_reference: bgp_router_reference.bgp_router_reference.clone(),
+                                                        bgp_router_group: Some(bgp_router_group_name.to_string()),
+                                                        session_attributes: BgpSessionAttributes{
+                                                            local_address: bgp_router.spec.address.as_ref().unwrap().clone(),
+                                                            peer_address: bgp_router_reference.local_address.clone(),
+                                                            local_as: bgp_router.spec.autonomous_system_number,
+                                                            peer_as: bgp_router.spec.autonomous_system_number,
+                                                            address_families: bgp_router.spec.address_families.clone(),
+                                                        }
+                                                    };
+                                                    bgp_peering_references.push(bgp_peering_reference);
+                                                }
+                                            }
+
+                                            if bgp_router.status.is_some(){
+                                                bgp_router.status.as_mut().unwrap().bgp_peer_references = Some(bgp_peering_references);
+                                            } else {
+                                                bgp_router.status = Some(BgpRouterStatus{
+                                                    bgp_peer_references: Some(bgp_peering_references),
+                                                });
+                                            }  
+
+                                            if let Err(e) = controllers::update_status::<BgpRouter>(bgp_router.clone(), ctx.client.clone()).await{
+                                                return Err(e);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    None => {}
+                }
+            }
+            Err(e) => {
+               return Err(e)
+            }
+        }
         Ok(Action::await_change())
     }
     fn error_policy(g: Arc<BgpRouter>, error: &ReconcileError, ctx: Arc<Context>) -> Action {
@@ -51,6 +106,23 @@ impl Controller for BgpRouterController{
             BgpRouterController::error_policy(g, error, ctx)
         };
         runtime_controller::new(self.resource.clone(), Config::default())
+            .watches(
+                Api::<BgpRouterGroup>::all(self.context.client.clone()),
+                Config::default(),
+                |bgp_router_group| {
+                    info!("crpd event in bgp_router_group controller:");
+                    let mut object_ref_list = Vec::new();
+                    if let Some(status) = &bgp_router_group.status{
+                        for bgp_router_reference in &status.bgp_router_references{
+                            let object_ref = ObjectRef::<BgpRouter>::new(
+                                bgp_router_reference.bgp_router_reference.name.as_ref().unwrap())
+                                .within(bgp_router_group.meta().namespace.as_ref().unwrap().clone().as_str());
+                            object_ref_list.push(object_ref);
+                        }
+                    }
+                    object_ref_list.into_iter()
+                }
+            )
             .run(reconcile, error_policy, self.context.clone())
             .for_each(|res| async move {
                 match res {
@@ -61,4 +133,8 @@ impl Controller for BgpRouterController{
             .await;
         Ok(())
     }
+}
+
+fn test(obj: &BgpRouterGroup) -> Option<u64>{
+    Some(0)
 }

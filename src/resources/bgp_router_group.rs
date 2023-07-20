@@ -25,13 +25,22 @@ use k8s_openapi::api::core::v1 as core_v1;
 pub struct BgpRouterGroupSpec {
     #[schemars(length(min = 1))]
     #[garde(skip)]
+    pub discover: bool,
+    #[garde(skip)]
     pub bgp_router_template: BgpRouterSpec,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BgpRouterGroupStatus {
-    pub bgp_router_references: Vec<core_v1::ObjectReference>,
+    pub bgp_router_references: Vec<BgpRouterReference>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BgpRouterReference{
+    pub bgp_router_reference: core_v1::ObjectReference,
+    pub local_address: String
 }
 
 pub struct BgpRouterGroupResource{

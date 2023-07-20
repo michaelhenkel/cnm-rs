@@ -29,14 +29,18 @@ pub enum AddressFamily{
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 pub enum BgpRouterType{
-    Crpd
+    Crpd,
+    Generic
 }
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
 #[kube(group = "cnm.juniper.net", version = "v1", kind = "BgpRouter", namespaced)]
 #[kube(status = "BgpRouterStatus")]
 #[serde(rename_all = "camelCase")]
-//#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
+#[kube(printcolumn = r#"{"name":"ASN", "jsonPath": ".spec.autonomousSystemNumber", "type": "integer"}"#)]
+#[kube(printcolumn = r#"{"name":"RouterId", "jsonPath": ".spec.routerId", "type": "string"}"#)]
+#[kube(printcolumn = r#"{"name":"Address", "jsonPath": ".spec.address", "type": "string"}"#)]
+#[kube(printcolumn = r#"{"name":"Type", "jsonPath": ".spec.routerType", "type": "string"}"#)]
 pub struct BgpRouterSpec {
     #[schemars(length(min = 1))]
     #[garde(skip)]
@@ -50,11 +54,9 @@ pub struct BgpRouterSpec {
     #[garde(skip)]
     pub address_families: Vec<AddressFamily>,
     #[garde(skip)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub router_type: Option<BgpRouterType>,
+    pub router_type: BgpRouterType,
     #[garde(skip)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub device_reference: Option<core_v1::ObjectReference>,
+    pub managed: bool,
     #[garde(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bgp_peer_references: Option<Vec<BgpPeeringReference>>,
@@ -65,6 +67,7 @@ pub struct BgpRouterSpec {
 pub struct BgpPeeringReference{
     pub peer_reference: core_v1::ObjectReference,
     pub session_attributes: BgpSessionAttributes,
+    pub bgp_router_group: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]

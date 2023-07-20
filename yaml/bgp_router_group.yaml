@@ -5,7 +5,10 @@ metadata:
   labels:
     cnm.juniper.net/bgpRouterType: Crpd
 spec:
+  discover: true
   bgpRouterTemplate:
+    managed: true
+    routerType: Crpd
     autonomousSystemNumber: 1
     addressFamilies:
     - Inet

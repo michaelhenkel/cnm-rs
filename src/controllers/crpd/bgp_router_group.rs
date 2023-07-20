@@ -2,6 +2,7 @@ use crate::controllers::controllers::{Controller, Context, ReconcileError};
 use crate::controllers::{controllers, bgp_router};
 use crate::resources::bgp_router_group::BgpRouterGroup;
 use crate::resources::bgp_router_group::BgpRouterGroupStatus;
+use crate::resources::bgp_router_group::BgpRouterReference;
 use crate::resources::bgp_router::BgpRouter;
 use crate::resources::crpd::crpd::Crpd;
 use async_trait::async_trait;
@@ -46,109 +47,103 @@ impl BgpRouterGroupController{
             Ok(res) => {
                 match res{
                     Some((mut bgp_router_group, _api)) => {
-                        match controllers::get::<Crpd>(g.meta().namespace.as_ref().unwrap().clone(),
-                        g.meta().name.as_ref().unwrap().clone(),
-                        ctx.client.clone())
-                        .await{
-                            Ok(res) => {
-                                match res {
-                                    Some((crpd, _crpd_api)) => {
-                                        match &crpd.status{
-                                            Some(status) => {
-                                                match &status.instances{
-                                                    Some(instances) => {
-                                                        let mut bgp_router_list = Vec::new();
-                                                        let mut bgp_router_references = Vec::new();
-                                                        for instance in instances{
-                                                            let mut bgp_router_spec = bgp_router_group.spec.bgp_router_template.clone();
-                                                            bgp_router_spec.address = Some(instance.address.clone());
-                                                            bgp_router_spec.router_id = Some(instance.address.clone());
-                                                            let mut bgp_router_labels = bgp_router_group.meta().labels.clone();
-                                                            bgp_router_labels.as_mut().unwrap().insert("cnm.juniper.net/bgpRouterGroup".to_string(), bgp_router_group.meta().name.as_ref().unwrap().clone());
-                                                            let bgp_router = BgpRouter{
-                                                                metadata: meta_v1::ObjectMeta {
-                                                                    name: Some(instance.name.clone()),
-                                                                    namespace: Some(g.meta().namespace.as_ref().unwrap().clone()),
-                                                                    labels: bgp_router_labels,
-                                                                    owner_references: Some(vec![
-                                                                        meta_v1::OwnerReference{
-                                                                            api_version: "cnm.juniper.net/v1".to_string(),
-                                                                            kind: "BgpRouterGroup".to_string(),
-                                                                            name: bgp_router_group.meta().name.as_ref().unwrap().clone(),
-                                                                            uid:  bgp_router_group.meta().uid.as_ref().unwrap().clone(),
-                                                                            ..Default::default()
-                                                                        },
-                                                                        meta_v1::OwnerReference{
-                                                                            api_version: "v1".to_string(),
-                                                                            kind: "Pod".to_string(),
-                                                                            name: instance.name.clone(),
-                                                                            uid:  instance.uuid.clone(),
-                                                                            ..Default::default()
-                                                                        },
-
-                                                                    ]),
-                                                                    ..Default::default()
-                                                                },
-                                                                spec: bgp_router_spec,
-                                                                status: None,
-                                                            };
-                                                            match controllers::create_or_update(bgp_router, ctx.client.clone()).await{
-                                                                Ok(bgp_router) => {
-                                                                    match bgp_router{
-                                                                        Some(bgp_router) => {
-                                                                            let bgp_router_reference = core_v1::ObjectReference{
-                                                                                api_version: Some("cnm.juniper.net/v1".to_string()),
-                                                                                kind: Some("BgpRouter".to_string()),
-                                                                                name: Some(bgp_router.meta().name.as_ref().unwrap().clone()),
-                                                                                uid: Some(bgp_router.meta().uid.as_ref().unwrap().clone()),
-                                                                                ..Default::default()
-                                                                            };
-                                                                            bgp_router_references.push(bgp_router_reference);
-                                                                            bgp_router_list.push(bgp_router);
-                                                                        },
-                                                                        None => {}
-                                                                    }
-                                                                },
-                                                                Err(e) => {
-                                                                    return Err(e);
-                                                                }
-                                                            }
+                        if bgp_router_group.spec.discover{
+                            match controllers::get::<Crpd>(g.meta().namespace.as_ref().unwrap().clone(),
+                            g.meta().name.as_ref().unwrap().clone(),
+                            ctx.client.clone())
+                            .await{
+                                Ok(res) => {
+                                    match res {
+                                        Some((crpd, _crpd_api)) => {
+                                            if let Some(status) = &crpd.status{
+                                                if let Some(instances) = &status.instances{
+                                                    let mut bgp_router_list = Vec::new();
+                                                    let mut bgp_router_references = Vec::new();
+                                                    for instance in instances{
+                                                        let mut bgp_router_spec = bgp_router_group.spec.bgp_router_template.clone();
+                                                        bgp_router_spec.address = Some(instance.address.clone());
+                                                        bgp_router_spec.router_id = Some(instance.address.clone());
+                                                        let mut bgp_router_labels = bgp_router_group.meta().labels.clone();
+                                                        bgp_router_labels.as_mut().unwrap().insert("cnm.juniper.net/bgpRouterGroup".to_string(), bgp_router_group.meta().name.as_ref().unwrap().clone());
+                                                        if bgp_router_spec.managed{
+                                                            bgp_router_labels.as_mut().unwrap().insert("cnm.juniper.net/bgpRouterManaged".to_string(), "true".to_string());
                                                         }
-                                                        if bgp_router_group.status.is_some(){
-                                                            bgp_router_group.status.as_mut().unwrap().bgp_router_references = bgp_router_references.clone();
-                                                        } else {
-                                                            bgp_router_group.status = Some(BgpRouterGroupStatus{
-                                                                bgp_router_references: bgp_router_references.clone(),
-                                                            });
-                                                        }  
-                                                        match controllers::update_status(bgp_router_group, ctx.client.clone()).await {
-                                                            Ok(_) => {
-
+                                                        let bgp_router = BgpRouter{
+                                                            metadata: meta_v1::ObjectMeta {
+                                                                name: Some(instance.name.clone()),
+                                                                namespace: Some(g.meta().namespace.as_ref().unwrap().clone()),
+                                                                labels: bgp_router_labels,
+                                                                owner_references: Some(vec![
+                                                                    meta_v1::OwnerReference{
+                                                                        api_version: "v1".to_string(),
+                                                                        kind: "Pod".to_string(),
+                                                                        name: instance.name.clone(),
+                                                                        uid:  instance.uuid.clone(),
+                                                                        ..Default::default()
+                                                                    },
+                                                                ]),
+                                                                ..Default::default()
+                                                            },
+                                                            spec: bgp_router_spec,
+                                                            status: None,
+                                                        };
+                                                        match controllers::create_or_update(bgp_router, ctx.client.clone()).await{
+                                                            Ok(bgp_router) => {
+                                                                if let Some(bgp_router) = bgp_router{
+                                                                    let bgp_router_reference = BgpRouterReference { 
+                                                                        bgp_router_reference:  core_v1::ObjectReference{
+                                                                            api_version: Some("cnm.juniper.net/v1".to_string()),
+                                                                            kind: Some("BgpRouter".to_string()),
+                                                                            name: Some(bgp_router.meta().name.as_ref().unwrap().clone()),
+                                                                            uid: Some(bgp_router.meta().uid.as_ref().unwrap().clone()),
+                                                                            ..Default::default()
+                                                                        },
+                                                                        local_address: bgp_router.spec.address.clone().unwrap(),
+                                                                    };
+                                                                    bgp_router_references.push(bgp_router_reference);
+                                                                    bgp_router_list.push(bgp_router);
+                                                                }
                                                             },
                                                             Err(e) => {
                                                                 return Err(e);
                                                             }
                                                         }
-                                                    },
-                                                    None => {}
+                                                    }
+                                                    if bgp_router_group.status.is_some(){
+                                                        bgp_router_group.status.as_mut().unwrap().bgp_router_references = bgp_router_references.clone();
+                                                    } else {
+                                                        bgp_router_group.status = Some(BgpRouterGroupStatus{
+                                                            bgp_router_references: bgp_router_references.clone(),
+                                                        });
+                                                    }  
+                                                    match controllers::update_status(bgp_router_group, ctx.client.clone()).await {
+                                                        Ok(_) => {
+
+                                                        },
+                                                        Err(e) => {
+                                                            return Err(e);
+                                                        }
+                                                    }
                                                 }
-                                            },
-                                            None => {},
-                                        }
-                                    },
-                                    None => {}
+                                            }
+                                        },
+                                        None => {}
+                                    }
+                                },
+                                Err(e) => {
+                                    return Err(e);
                                 }
-                            },
-                            Err(e) => {
-                                return Err(e);
                             }
+                            Ok(Action::await_change())
+                        } else {
+                            Ok(Action::await_change())
                         }
-                        Ok(Action::await_change())
                     },
                     None => {
                         info!("crpd bgp_router_group does not exist");
                         Ok(Action::await_change())
                     }
+                    
                 }
             },
             Err(e) => {
@@ -174,7 +169,6 @@ impl Controller for BgpRouterGroupController{
         let mut config = Config::default();
         config.label_selector = Some("cnm.juniper.net/bgpRouterType=Crpd".to_string());
         runtime_controller::new(self.resource.clone(), config.clone())
-            .owns(Api::<BgpRouter>::all(self.context.client.clone()), Config::default())
             .watches(
                 Api::<Crpd>::all(self.context.client.clone()),
                 Config::default(),
@@ -185,7 +179,6 @@ impl Controller for BgpRouterGroupController{
                         .within(crpd.meta().namespace.as_ref().unwrap()))
                 }
             )
-            /*
             .watches(
                 Api::<BgpRouter>::all(self.context.client.clone()),
                 Config::default(),
@@ -210,7 +203,6 @@ impl Controller for BgpRouterGroupController{
                     }
                 }
             )
-            */
             .run(reconcile, error_policy, self.context.clone())
             .for_each(|res| async move {
                 match res {
