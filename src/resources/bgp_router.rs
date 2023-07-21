@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::*;
-
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
 use kube::{
     api::{Api, PostParams, ResourceExt},
@@ -13,6 +12,7 @@ use kube::{
 };
 use async_trait::async_trait;
 use k8s_openapi::api::core::v1 as core_v1;
+use std::fmt::{Display, Result, Formatter};
 
 use crate::resources::resources::Resource;
 
@@ -31,6 +31,15 @@ pub enum AddressFamily{
 pub enum BgpRouterType{
     Crpd,
     Generic
+}
+
+impl Display for BgpRouterType {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match self {
+            BgpRouterType::Crpd => write!(f, "Crpd"),
+            BgpRouterType::Generic => write!(f, "Generic"),
+        }
+    }
 }
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
