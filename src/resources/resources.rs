@@ -4,7 +4,7 @@ use tracing::*;
 
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
 use kube::{
-    api::{Api, DeleteParams, ResourceExt},
+    api::{Api, DeleteParams, ResourceExt, PatchParams},
     Client,
 };
 use async_trait::async_trait;
@@ -20,6 +20,9 @@ pub trait Resource: Send + Sync{
         let crds: Api<CustomResourceDefinition> = Api::all(client.clone());
         let fqdn = format!("{}.{}", self.name(), self.group());
         let dp = DeleteParams::default();
+        let _ = crds.get(fqdn.as_str()).await.map(|res|{
+            let pp = PatchParams::default();
+        });
         let _ = crds.delete(fqdn.as_str(), &dp).await.map(|res| {
             res.map_left(|o| {
                 info!(

@@ -153,14 +153,13 @@ impl Controller for CrpdController{
                 |sts| {
                     match &sts.meta().labels{
                         Some(labels) => {
-                            let res = if labels.contains_key("app") && labels["app"] == "crpd"{
+                            if labels.contains_key("app") && labels["app"] == "crpd"{
                                 Some(ObjectRef::<Crpd>::new(
                                     sts.meta().name.as_ref().unwrap())
                                     .within(sts.meta().namespace.as_ref().unwrap()))
                             } else {
                                 None
-                            };
-                            res
+                            }
                         },
                         None => {
                             None

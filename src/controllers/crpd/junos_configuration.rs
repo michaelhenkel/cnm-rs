@@ -64,8 +64,10 @@ impl Controller for JunosConfigurationController{
             JunosConfigurationController::error_policy(g, error, ctx)
         };
         let mut config = Config::default();
-        //config.field_selector = Some("cnm.juniper.net/bgpRouterManaged=bgp-true,
-        //cnm.juniper.net/bgpRouterType=Crpd".to_string());
+        config.label_selector = Some("
+            cnm.juniper.net/bgpRouterManaged=bgp-true,
+            cnm.juniper.net/bgpRouterType=Crpd
+        ".to_string());
         runtime_controller::new(self.resource.clone(), config)
             .run(reconcile, error_policy, self.context.clone())
             .for_each(|res| async move {

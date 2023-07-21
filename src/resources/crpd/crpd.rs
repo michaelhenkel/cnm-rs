@@ -43,38 +43,6 @@ pub struct Instance{
     pub uuid: String,
 }
 
-fn set_listable_schema(_: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
-    serde_json::from_value(serde_json::json!({
-        "type": "object",
-        "properties": {
-            "addresses": {
-                "type": "object",
-                "additionalProperties": {
-                    "type": "string"
-                },
-            }
-        },
-        "x-kubernetes-list-type": "map"
-    }))
-    .unwrap()
-}
-
-/*
-    type: object
-    properties:
-      spec:
-        type: object
-        x-kubernetes-validations:
-          - rule: "self['xyz'].foo > 0"
-        additionalProperties:
-          ...
-          type: object
-          properties:
-            foo:
-              type: integer
-
-*/
-
 pub struct CrpdResource{
     client: Client,
     name: String,
@@ -85,7 +53,7 @@ pub struct CrpdResource{
 
 impl CrpdResource{
     pub fn new(client: Client) -> Self{
-        let name = "crpd".to_string();
+        let name = "crpds".to_string();
         let group = "cnm.juniper.net".to_string();
         let version = "v1".to_string();
         CrpdResource{
@@ -123,7 +91,6 @@ impl Resource for CrpdResource{
             Err(kube::Error::Api(ae)) => assert_eq!(ae.code, 409), // if you skipped delete, for instance
             Err(e) => return Err(e.into()),                        // any other case is probably bad
         }
-        // Wait for the api to catch up
         sleep(Duration::from_secs(1)).await;
         Ok(())
     }
