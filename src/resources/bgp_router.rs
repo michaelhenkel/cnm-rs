@@ -30,7 +30,9 @@ pub enum AddressFamily{
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 pub enum BgpRouterType{
     Crpd,
-    Generic
+    Generic,
+    MetalLb,
+    Tgw,
 }
 
 impl Display for BgpRouterType {
@@ -38,6 +40,8 @@ impl Display for BgpRouterType {
         match self {
             BgpRouterType::Crpd => write!(f, "Crpd"),
             BgpRouterType::Generic => write!(f, "Generic"),
+            BgpRouterType::MetalLb => write!(f, "MetalLb"),
+            BgpRouterType::Tgw => write!(f, "Tgw"),
         }
     }
 }

@@ -19,6 +19,9 @@ use tracing::*;
 use k8s_openapi::api::apps::v1 as apps_v1;
 use k8s_openapi::api::core::v1 as core_v1;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
+use k8s_openapi::api::rbac::v1 as rbac_v1;
+
+//rbac.authorization.k8s.io/v1
 
 pub struct CrpdController{
     context: Arc<Context>,
@@ -140,9 +143,58 @@ impl CrpdController{
 #[async_trait]
 impl Controller for CrpdController{
     async fn run(&self) -> anyhow::Result<()>{
+        let role = rbac_v1::Role{
+            metadata: meta_v1::ObjectMeta{
+                name: Some("crpd".to_string()),
+                namespace: Some("default".to_string()),
+                ..Default::default()
+            },
+            rules: Some(vec![rbac_v1::PolicyRule{
+                api_groups: Some(vec!["*".to_string()]),
+                resources: Some(vec!["*".to_string()]),
+                verbs: vec!["*".to_string()],
+                ..Default::default()
+            }]),
+            ..Default::default()   
+        };
+        controllers::create_or_update(role, self.context.client.clone()).await?;
+
+        let service_account = core_v1::ServiceAccount{
+            metadata: meta_v1::ObjectMeta {
+                name: Some("crpd".to_string()),
+                namespace: Some("default".to_string()),
+                ..Default::default()
+            },
+            automount_service_account_token: Some(true),
+            ..Default::default()
+        };
+        controllers::create_or_update(service_account, self.context.client.clone()).await?;
+
+        let role_binding = rbac_v1::RoleBinding{
+            metadata: meta_v1::ObjectMeta{
+                name: Some("crpd".to_string()),
+                namespace: Some("default".to_string()),
+                ..Default::default()
+            },
+            role_ref: rbac_v1::RoleRef{
+                api_group: "rbac.authorization.k8s.io".to_string(),
+                kind: "Role".to_string(),
+                name: "crpd".to_string(),
+            },
+            subjects: Some(vec![rbac_v1::Subject{
+                kind: "ServiceAccount".to_string(),
+                name: "crpd".to_string(),
+                namespace: Some("default".to_string()),
+                ..Default::default()
+            }]),
+        };
+        controllers::create_or_update(role_binding, self.context.client.clone()).await?;
+
         let reconcile = |g: Arc<Crpd>, ctx: Arc<Context>| {
             async move { CrpdController::reconcile(g, ctx).await }
         };
+
+
         let error_policy = |g: Arc<Crpd>, error: &ReconcileError, ctx: Arc<Context>| {
             CrpdController::error_policy(g, error, ctx)
         };
@@ -218,6 +270,16 @@ impl From<Crpd> for apps_v1::StatefulSet{
                         ..Default::default()
                      }),
                     spec: Some(core_v1::PodSpec{
+                        volumes: Some(vec![
+                            core_v1::Volume{
+                                name: "certs".to_string(),
+                                empty_dir: Some(core_v1::EmptyDirVolumeSource{
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            },
+                        ]),
+                        service_account_name: Some("crpd".to_string()),
                         host_network: Some(true),
                         tolerations: Some(vec![core_v1::Toleration{
                             effect: Some("NoSchedule".to_string()),
@@ -225,7 +287,8 @@ impl From<Crpd> for apps_v1::StatefulSet{
                             operator: Some("Exists".to_string()),
                             ..Default::default()
                         }]),
-                        containers: vec![core_v1::Container{
+                        containers: vec![
+                            core_v1::Container{
                             ports: Some(vec![core_v1::ContainerPort{
                                 container_port: 179,
                                 ..Default::default()
@@ -236,8 +299,83 @@ impl From<Crpd> for apps_v1::StatefulSet{
                                 privileged: Some(true),
                                 ..Default::default()
                             }),
+                            volume_mounts: Some(vec![
+                                core_v1::VolumeMount{
+                                    name: "certs".to_string(),
+                                    mount_path: "/etc/certs".to_string(),
+                                    ..Default::default()
+                                },
+                            ]),
                             ..Default::default()
-                        }],
+                        },
+                        ],
+                        init_containers: Some(vec![
+                            core_v1::Container{
+                                name: "init".to_string(),
+                                image: Some(crpd.spec.init_image),
+                                command: Some(vec![
+                                    "crpd-init".to_string(),
+                                ]),
+                                env: Some(vec![
+                                    core_v1::EnvVar{
+                                        name: "POD_IP".to_string(),
+                                        value_from: Some(core_v1::EnvVarSource{
+                                            field_ref: Some(core_v1::ObjectFieldSelector{
+                                                field_path: "status.podIP".to_string(),
+                                                ..Default::default()
+                                            }),
+                                            ..Default::default()
+                                        }),
+                                        ..Default::default()
+                                    },
+                                    core_v1::EnvVar{
+                                        name: "POD_NAME".to_string(),
+                                        value_from: Some(core_v1::EnvVarSource{
+                                            field_ref: Some(core_v1::ObjectFieldSelector{
+                                                field_path: "metadata.name".to_string(),
+                                                ..Default::default()
+                                            }),
+                                            ..Default::default()
+                                        }),
+                                        ..Default::default()
+                                    },
+                                    core_v1::EnvVar{
+                                        name: "POD_NAMESPACE".to_string(),
+                                        value_from: Some(core_v1::EnvVarSource{
+                                            field_ref: Some(core_v1::ObjectFieldSelector{
+                                                field_path: "metadata.namespace".to_string(),
+                                                ..Default::default()
+                                            }),
+                                            ..Default::default()
+                                        }),
+                                        ..Default::default()
+                                    },
+                                    core_v1::EnvVar{
+                                        name: "POD_UID".to_string(),
+                                        value_from: Some(core_v1::EnvVarSource{
+                                            field_ref: Some(core_v1::ObjectFieldSelector{
+                                                field_path: "metadata.uid".to_string(),
+                                                ..Default::default()
+                                            }),
+                                            ..Default::default()
+                                        }),
+                                        ..Default::default()
+                                    },
+                                ]),
+                                security_context: Some(core_v1::SecurityContext{
+                                    privileged: Some(true),
+                                    ..Default::default()
+                                }),
+                                volume_mounts: Some(vec![
+                                    core_v1::VolumeMount{
+                                        name: "certs".to_string(),
+                                        mount_path: "/etc/certs".to_string(),
+                                        ..Default::default()
+                                    },
+                                ]),
+                                ..Default::default()
+                            }
+                        ]),
                         ..Default::default()
                     }),
                 },

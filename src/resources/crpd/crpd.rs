@@ -21,12 +21,15 @@ use crate::resources::resources::Resource;
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
 #[kube(group = "cnm.juniper.net", version = "v1", kind = "Crpd", namespaced)]
 #[kube(status = "CrpdStatus")]
+#[serde(rename_all = "camelCase")]
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
 pub struct CrpdSpec {
     #[garde(skip)]
     pub replicas: i32,
     #[garde(skip)]
     pub image: String,
+    #[garde(skip)]
+    pub init_image: String,
 }
 
 

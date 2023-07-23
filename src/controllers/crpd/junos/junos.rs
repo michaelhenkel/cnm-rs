@@ -1,7 +1,7 @@
-use serde::{Deserialize};
+use serde::{Deserialize, Serialize};
 use crate::resources::bgp_router::BgpRouter;
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Configuration {
     #[serde(rename = "@")]
     attributes: Attributes,
@@ -9,7 +9,7 @@ pub struct Configuration {
     protocols: Protocols,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Attributes {
     #[serde(rename = "junos:changed-seconds")]
     changed_seconds: String,
@@ -17,17 +17,17 @@ pub struct Attributes {
     changed_localtime: String,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Protocols {
     bgp: Bgp,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Bgp {
     group: Vec<Group>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Group {
     name: String,
     r#type: String,
@@ -45,24 +45,24 @@ pub struct Group {
     vpn_apply_export: Vec<Option<()>>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Family {
     #[serde(rename = "inet-vpn")]
     inet_vpn: InetVpn,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct InetVpn {
     unicast: Vec<Option<()>>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct LocalAs {
     #[serde(rename = "as-number")]
     as_number: String,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Neighbor {
     name: String,
 }

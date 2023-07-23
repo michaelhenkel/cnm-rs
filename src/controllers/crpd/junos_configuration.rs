@@ -1,5 +1,6 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
 use crate::controllers::controllers;
+use crate::cert;
 use crate::controllers::crpd::junos::junos;
 use crate::resources::bgp_router::BgpRouter;
 use kube::Resource;
@@ -38,7 +39,14 @@ impl JunosConfigurationController{
             .await{
             Ok(res) => {
                 match res{
-                    Some((bgp_router, _)) => {},
+                    Some((bgp_router, _)) => {
+                        if let Some(address) = bgp_router.spec.address{
+                            
+                        }
+                        if let Some(status) = bgp_router.status{
+                            
+                        }
+                    },
                     None => {}
                 }
             },
