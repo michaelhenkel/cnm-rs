@@ -1,3 +1,4 @@
 FROM debian:12
-RUN echo hello
+RUN apt update -y
+RUN apt install -y openssl
 COPY target/release/crpd-init /usr/bin

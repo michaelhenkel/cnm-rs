@@ -1,7 +1,7 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
 use crate::controllers::controllers;
 use crate::cert;
-use crate::controllers::crpd::junos::junos;
+use crate::controllers::crpd::junos;
 use crate::resources::bgp_router::BgpRouter;
 use kube::Resource;
 use async_trait::async_trait;
@@ -40,8 +40,21 @@ impl JunosConfigurationController{
             Ok(res) => {
                 match res{
                     Some((bgp_router, _)) => {
+                        info!("junos config controller reconciles bgprouter config");
                         if let Some(address) = bgp_router.spec.address{
-                            
+                            match junos::client::Client::new(address).await{
+                                Ok(mut client) => {
+                                    match client.get().await{
+                                        Ok(config) => {
+                                            info!("config {:#?}", config);
+                                        },
+                                        Err(e) => { return Err(ReconcileError(e.into()))}
+                                    }
+                                },
+                                Err(e) => {
+                                    return Err(ReconcileError(e.into()))
+                                },
+                            }
                         }
                         if let Some(status) = bgp_router.status{
                             
@@ -73,7 +86,7 @@ impl Controller for JunosConfigurationController{
         };
         let mut config = Config::default();
         config.label_selector = Some("
-            cnm.juniper.net/bgpRouterManaged=bgp-true,
+            cnm.juniper.net/bgpRouterManaged=true,
             cnm.juniper.net/bgpRouterType=Crpd
         ".to_string());
         runtime_controller::new(self.resource.clone(), config)

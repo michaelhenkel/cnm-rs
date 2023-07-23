@@ -9,28 +9,28 @@ pub struct Client {
 }
 
 impl Client{
-    pub async fn new(address: String) -> Result<Self, Box<dyn std::error::Error>>{
+    pub async fn new(address: String) -> anyhow::Result<Client>{
         let client = management_client::ManagementClient::connect(address).await?;
         Ok(Client{
             client,
         })
     }
-    pub async fn set(&mut self, config: junos::Configuration) -> Result<(), Box<dyn std::error::Error>>{
+    pub async fn set(&mut self, config: junos::Configuration) -> anyhow::Result<()>{
         let mut request = ConfigSetRequest::default();
         let json_config = serde_json::to_string(&config)?;
         request.config = Some(config_set_request::Config::JsonConfig(json_config));
         self.client.config_set(request).await?;
         Ok(())
     }
-    pub async fn get(&mut self) -> Result<(), Box<dyn std::error::Error>>{
+    pub async fn get(&mut self) -> anyhow::Result<Option<String>>{
         let mut op_command_request = OpCommandGetRequest::default();
         op_command_request.command = Some(super::proto::jnx::jet::management::op_command_get_request::Command::XmlCommand("<get-configuration></get-configuration>".to_string()));
         op_command_request.set_out_format(super::proto::jnx::jet::management::OpCommandOutputFormat::OpCommandOutputJson);
         let mut res = self.client.op_command_get(op_command_request).await?.into_inner();
         let msg = res.message().await?;
         if let Some(msg) = msg{
-            //msg.data
+            return Ok(Some(msg.data));
         }
-        Ok(())
+        Ok(None)
     }
 }
