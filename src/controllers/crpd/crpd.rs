@@ -278,6 +278,13 @@ impl From<Crpd> for apps_v1::StatefulSet{
                                 }),
                                 ..Default::default()
                             },
+                            core_v1::Volume{
+                                name: "config".to_string(),
+                                empty_dir: Some(core_v1::EmptyDirVolumeSource{
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            },
                         ]),
                         service_account_name: Some("crpd".to_string()),
                         host_network: Some(true),
@@ -303,6 +310,11 @@ impl From<Crpd> for apps_v1::StatefulSet{
                                 core_v1::VolumeMount{
                                     name: "certs".to_string(),
                                     mount_path: "/etc/certs".to_string(),
+                                    ..Default::default()
+                                },
+                                core_v1::VolumeMount{
+                                    name: "config".to_string(),
+                                    mount_path: "/config".to_string(),
                                     ..Default::default()
                                 },
                             ]),
@@ -370,6 +382,11 @@ impl From<Crpd> for apps_v1::StatefulSet{
                                     core_v1::VolumeMount{
                                         name: "certs".to_string(),
                                         mount_path: "/etc/certs".to_string(),
+                                        ..Default::default()
+                                    },
+                                    core_v1::VolumeMount{
+                                        name: "config".to_string(),
+                                        mount_path: "/config".to_string(),
                                         ..Default::default()
                                     },
                                 ]),

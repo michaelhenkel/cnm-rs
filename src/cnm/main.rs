@@ -1,5 +1,6 @@
 use cnm_rs::resources;
 use cnm_rs::controllers;
+use cnm_rs::admission;
 use kube::Client;
 
 
@@ -13,6 +14,14 @@ async fn main() -> anyhow::Result<()> {
     )
     .init();
     let client = Client::try_default().await?;
+
+    let mut join_handlers = Vec::new();
+
+    let adm = admission::admission::AdmissionController::new("192.168.105.4".to_string(),"cnm-admission-controller".to_string(), client.clone());
+    
+    join_handlers.push(tokio::spawn(async move {
+        adm.admission().await
+    }));
 
     let resource_list: Vec<Box<dyn resources::resources::Resource>> = vec![
 
@@ -31,9 +40,15 @@ async fn main() -> anyhow::Result<()> {
         Box::new(controllers::crpd::junos_configuration::JunosConfigurationController::new(client.clone())),
 
     ];
-    tokio::spawn(async move {
-        controllers::controllers::init_controllers(controller_list).await
-    }).await??;
+    
+
+    join_handlers.push(
+        tokio::spawn(async move {
+            controllers::controllers::init_controllers(controller_list).await
+        })
+    );
+
+    futures::future::join_all(join_handlers).await;
 
     Ok(())
 }

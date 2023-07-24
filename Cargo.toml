@@ -43,10 +43,13 @@ webpki-roots = "0.24.0"
 rustls = "0.21.5"
 rsa = "0.9.2"
 ring = "0.16.20"
-rcgen = "0.11.1"
+rcgen = { version = "0.11.1", features = ["pem","x509-parser"] }
 maplit = "1.0.2"
 base64 = "0.21.2"
 data-encoding = "2.4.0"
+flate2 = "1.0.26"
+rand = "0.8.5"
+openssl = "0.10.55"
 
 [build-dependencies]
 tonic-build = "0.9.2"

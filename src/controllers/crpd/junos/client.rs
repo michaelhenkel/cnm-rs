@@ -2,6 +2,7 @@ use super::proto::jnx::jet::management::OpCommandGetRequest;
 use super::proto::jnx::jet::management::management_client;
 use super::proto::jnx::jet::management::ConfigSetRequest;
 use super::proto::jnx::jet::management::config_set_request;
+use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity};
 use super::junos;
 
 pub struct Client {
@@ -9,8 +10,14 @@ pub struct Client {
 }
 
 impl Client{
-    pub async fn new(address: String) -> anyhow::Result<Client>{
-        let client = management_client::ManagementClient::connect(address).await?;
+    pub async fn new(address: String, key: String, pem: String) -> anyhow::Result<Client>{
+        let client_identity = Identity::from_pem(pem, key);
+        let tls = ClientTlsConfig::new()
+            .domain_name("localhost")
+            .identity(client_identity);
+        let endpoint = tonic::transport::Endpoint::from_shared(format!("https://{}:50051",address))?.
+            tls_config(tls)?;
+        let client = management_client::ManagementClient::connect(endpoint).await?;
         Ok(Client{
             client,
         })
