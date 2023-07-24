@@ -31,6 +31,25 @@ pub async fn main() -> anyhow::Result<()> {
         Err(e) => { return Err(e.into())}
     };
     let (key, cert) = cert::get_cert(pod_name.as_str(), pod_ip.as_str())?;
+
+    let (ca_cert_string, ca_cert) = match cert::create_ca_key_cert(pod_name.clone()){
+        Ok((ca_cert_string, ca_cert)) => {
+            (ca_cert_string, ca_cert)
+        },
+        Err(e) => {
+            return Err(e);
+        }
+    };
+
+    let (private_key, signed_cert) = match cert::create_sign_private_key(pod_name.clone(), pod_ip.clone(), ca_cert){
+        Ok((private_key, signed_cert)) => {
+            (private_key, signed_cert)
+        },
+        Err(e) => {
+            return Err(e);
+        }
+    };
+
     let secret = core_v1::Secret{
         metadata: meta_v1::ObjectMeta{
             name: Some(pod_name),
@@ -38,7 +57,12 @@ pub async fn main() -> anyhow::Result<()> {
             ..Default::default()
         },
         type_: Some("kubernetes.io/tls".to_string()),
-        data: Some(BTreeMap::from([("tls.crt".to_string(), ByteString(cert.as_bytes().to_vec())), ("tls.key".to_string(), ByteString(key.as_bytes().to_vec()))])),
+        data: Some(
+            BTreeMap::from([
+                ("tls.crt".to_string(), ByteString(signed_cert.as_bytes().to_vec())),
+                ("tls.key".to_string(), ByteString(private_key.as_bytes().to_vec())),
+                ("ca.crt".to_string(), ByteString(ca_cert_string.as_bytes().to_vec())),
+            ])),
         ..Default::default()
     };
     let client = Client::try_default().await?;

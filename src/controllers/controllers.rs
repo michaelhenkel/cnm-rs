@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use kube::{Client, Error, Api};
+use kube::{Client, Error, Api, client};
 use k8s_openapi::{NamespaceResourceScope, ClusterResourceScope};
 use kube::api::{ObjectMeta, PostParams};
 use serde::de::DeserializeOwned;
@@ -32,6 +32,18 @@ pub trait Controller: Send + Sync{
 #[derive(Clone)]
 pub struct Context {
     pub client: Client,
+    pub key: Option<String>,
+    pub cert: Option<String>,
+}
+
+impl Context{
+    pub fn new(client: Client) -> Self{
+        Self{
+            client,
+            key: None,
+            cert: None,
+        }
+    }
 }
 
 pub async fn init_controllers(controller_list: Vec<Box<dyn Controller>>) -> anyhow::Result<()>{

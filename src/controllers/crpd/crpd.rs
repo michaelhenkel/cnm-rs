@@ -31,9 +31,7 @@ pub struct CrpdController{
 impl CrpdController{
     pub fn new(client: Client) -> Self{
         let resource = Api::all(client.clone());
-        let context = Arc::new(Context{
-            client: client.clone(),
-        });
+        let context = Arc::new(Context::new(client.clone()));
         CrpdController{context, resource}
     }
     async fn reconcile(g: Arc<Crpd>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {

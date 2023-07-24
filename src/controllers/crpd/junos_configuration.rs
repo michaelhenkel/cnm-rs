@@ -28,9 +28,7 @@ pub struct JunosConfigurationController{
 impl JunosConfigurationController{
     pub fn new(client: Client) -> Self{
         let resource = Api::all(client.clone());
-        let context = Arc::new(Context{
-            client: client.clone(),
-        });
+        let context = Arc::new(Context::new(client.clone()));
         JunosConfigurationController{context, resource}
     }
     async fn reconcile(g: Arc<BgpRouter>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
@@ -81,7 +79,8 @@ impl JunosConfigurationController{
                             Err(e) => {return Err(e)}
                         };
                         if let Some(address) = bgp_router.spec.address{
-                            match junos::client::Client::new(address, key, pem).await{
+                            /* 
+                            match junos::client::Client::new(address, bgp_router.meta().name.as_ref().unwrap().clone(), key, pem).await{
                                 Ok(mut client) => {
                                     match client.get().await{
                                         Ok(config) => {
@@ -94,6 +93,7 @@ impl JunosConfigurationController{
                                     return Err(ReconcileError(e.into()))
                                 },
                             }
+                            */
                         }
                         if let Some(status) = bgp_router.status{
                             

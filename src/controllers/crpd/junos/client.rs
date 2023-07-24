@@ -11,10 +11,12 @@ pub struct Client {
 }
 
 impl Client{
-    pub async fn new(address: String, key: String, pem: String) -> anyhow::Result<Client>{
-        let client_identity = Identity::from_pem(pem, key);
+    pub async fn new(address: String, domain_name: String, key: String, ca: String, cert: String) -> anyhow::Result<Client>{
+        let client_identity = Identity::from_pem(cert, key);
+
         let tls = ClientTlsConfig::new()
-            .domain_name("localhost")
+            .domain_name(domain_name)
+            .ca_certificate(Certificate::from_pem(ca))
             .identity(client_identity);
         let endpoint = match tonic::transport::Endpoint::from_shared(format!("http://{}:50051",address)){
             Ok(endpoint) => {
