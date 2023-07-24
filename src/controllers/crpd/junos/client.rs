@@ -4,6 +4,7 @@ use super::proto::jnx::jet::management::ConfigSetRequest;
 use super::proto::jnx::jet::management::config_set_request;
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity};
 use super::junos;
+use tracing::warn;
 
 pub struct Client {
     client: management_client::ManagementClient<tonic::transport::Channel>,
@@ -15,9 +16,28 @@ impl Client{
         let tls = ClientTlsConfig::new()
             .domain_name("localhost")
             .identity(client_identity);
-        let endpoint = tonic::transport::Endpoint::from_shared(format!("https://{}:50051",address))?.
-            tls_config(tls)?;
-        let client = management_client::ManagementClient::connect(endpoint).await?;
+        let endpoint = match tonic::transport::Endpoint::from_shared(format!("http://{}:50051",address)){
+            Ok(endpoint) => {
+                match endpoint.tls_config(tls){
+                    Ok(endpoint) => {endpoint},
+                    Err(e) => {
+                        warn!("Failed to create endpoint: {}", e);
+                        return Err(anyhow::anyhow!("Failed to create endpoint: {}", e))
+                    }
+                }
+            },
+            Err(e) => {
+                warn!("Failed to create endpoint: {}", e);
+                return Err(anyhow::anyhow!("Failed to create endpoint: {}", e))
+            }
+        };
+        let client = match management_client::ManagementClient::connect(endpoint).await{
+            Ok(client) => {client},
+            Err(e) => {
+                warn!("Failed to connect to grpc server: {}", e);
+                return Err(anyhow::anyhow!("Failed to connect to grpc server: {}", e))
+            }
+        };
         Ok(Client{
             client,
         })
