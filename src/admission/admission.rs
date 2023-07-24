@@ -30,11 +30,26 @@ impl AdmissionController{
         }
     }
     pub async fn admission(&self) -> anyhow::Result<()>{
-        tracing_subscriber::fmt::init();
-        let mut certficate = cert::Cert::new(self.address.clone(), self.dns.clone());
-        certficate.create_ca_key_cert()?;
-        certficate.create_sign_private_key()?;
-        self.adm_registration(certficate.ca_cert.unwrap()).await?;
+        info!("Starting admission controller");
+        let (ca_cert_pem, ca_cert) = match cert::create_ca_key_cert(self.dns.clone()){
+            Ok((ca_cert_pem, ca_cert)) => {
+                (ca_cert_pem, ca_cert)
+            },
+            Err(e) => {
+                error!("Failed to create ca key and cert: {}", e);
+                return Err(e);
+            }
+        };
+        let (key, cert) = match cert::create_sign_private_key(self.dns.clone(), self.address.clone(), ca_cert){
+            Ok((key, cert)) => {
+                (key, cert)
+            },
+            Err(e) => {
+                error!("Failed to create sign private key: {}", e);
+                return Err(e);
+            }
+        };
+        self.adm_registration(ca_cert_pem).await?;
 
         let routes = warp::path("mutate")
             .and(warp::body::json())
@@ -47,21 +62,23 @@ impl AdmissionController{
         let addr = format!("{}:8443", self.address.clone());
         warp::serve(warp::post().and(routes))
             .tls()
-            .cert(certficate.private_signed_cert.unwrap().as_bytes())
-            .key(certficate.private_key.unwrap().as_bytes())
+            .cert(cert.as_bytes())
+            .key(key.as_bytes())
             .run(addr.parse::<std::net::SocketAddr>()?) // local-dev
             .await;
+        info!("Admission controller stopped");
         Ok(())
     }
     async fn adm_registration(&self, ca_pem: String) -> anyhow::Result<()>{
-        let ca_pem_64 = general_purpose::STANDARD.encode(&ca_pem.as_bytes());
+        info!("Registering admission controller mutating webhook");
+        //let ca_pem_64 = general_purpose::STANDARD.encode(&ca_pem.as_bytes());
         let mut mutating_webhook_config = adm_v1::MutatingWebhookConfiguration::default();
         mutating_webhook_config.metadata.name = Some("cnm-mutating-webhook-config".to_string());
         mutating_webhook_config.webhooks = Some(vec![adm_v1::MutatingWebhook{
             name: "cnm-admission.default.svc".to_string(),
             client_config: adm_v1::WebhookClientConfig{
                 url: Some(format!("https://{}:8443/mutate", self.address.clone())),
-                ca_bundle: Some(ByteString(ca_pem_64.as_bytes().to_vec())),
+                ca_bundle: Some(ByteString(ca_pem.as_bytes().to_vec())),
                 ..Default::default()
             },
             rules: Some(vec![adm_v1::RuleWithOperations{
@@ -79,6 +96,7 @@ impl AdmissionController{
             ..Default::default()
         }]);
         controllers::create_or_update_cluster::<adm_v1::MutatingWebhookConfiguration>(mutating_webhook_config, self.client.clone()).await?;
+        info!("Admission controller mutating webhook registered");
         Ok(())
     }
 

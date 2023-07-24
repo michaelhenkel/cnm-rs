@@ -27,15 +27,13 @@
             "type": "lldb",
             "request": "launch",
             "name": "Debug executable 'cnm-rs'",
-            "env": {"KUBECONFIG": "~/k0s/config"},
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=cnm-rs",
-                    "--package=cnm-rs"
+                    "--bin=cnm"
                 ],
                 "filter": {
-                    "name": "cnm-rs",
+                    "name": "cnm",
                     "kind": "bin"
                 }
             },
