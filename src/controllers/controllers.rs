@@ -32,16 +32,24 @@ pub trait Controller: Send + Sync{
 #[derive(Clone)]
 pub struct Context {
     pub client: Client,
+    pub name: Option<String>,
+    pub namespace: Option<String>,
+    pub address: Option<String>,
     pub key: Option<String>,
     pub cert: Option<String>,
+    pub ca: Option<String>,
 }
 
 impl Context{
     pub fn new(client: Client) -> Self{
         Self{
             client,
+            name: None,
+            namespace: None,
+            address: None,
             key: None,
             cert: None,
+            ca: None,
         }
     }
 }

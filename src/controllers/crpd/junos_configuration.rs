@@ -26,9 +26,9 @@ pub struct JunosConfigurationController{
 }
 
 impl JunosConfigurationController{
-    pub fn new(client: Client) -> Self{
-        let resource = Api::all(client.clone());
-        let context = Arc::new(Context::new(client.clone()));
+    pub fn new(context: Arc<Context>) -> Self{
+        let resource = Api::all(context.client.clone());
+        let context = context.clone();
         JunosConfigurationController{context, resource}
     }
     async fn reconcile(g: Arc<BgpRouter>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
@@ -41,46 +41,13 @@ impl JunosConfigurationController{
                 match res{
                     Some((bgp_router, _)) => {
                         info!("junos config controller reconciles bgprouter config");
-                        let (key, pem) = match controllers::get::<core_v1::Secret>(bgp_router.meta().namespace.as_ref().unwrap().to_string(), 
-                        bgp_router.meta().name.as_ref().unwrap().to_string(), ctx.client.clone()).await{
-                            Ok(secret) => {
-                                if let Some((secret, _)) = secret{
-                                    let key = match secret.data.as_ref().unwrap().get("tls.key"){
-                                        Some(key) => {
-                                            match std::str::from_utf8(&key.0){
-                                                Ok(key) => {
-                                                    info!("key {:#?}", key);
-                                                    key
-                                                },
-                                                Err(e) => {return Err(ReconcileError(anyhow::anyhow!("tls.key is not valid utf8")))}
-                                            }
-                                            
-                                        }
-                                        None => {return Err(ReconcileError(anyhow::anyhow!("tls.key not found in secret")))}
-                                    };
-                                    let cert = match secret.data.as_ref().unwrap().get("tls.crt"){
-                                        Some(cert) => {
-                                            match std::str::from_utf8(&cert.0){
-                                                Ok(cert) => {
-                                                    info!("cert {:#?}", cert);
-                                                    cert
-                                                },
-                                                Err(e) => {return Err(ReconcileError(anyhow::anyhow!("tls.crt is not valid utf8")))}
-                                            }
-                                        }
-                                        None => {return Err(ReconcileError(anyhow::anyhow!("tls.crt not found in secret")))}
-                                    };
-                                    (key.to_string(), format!("{}\n{}", key, cert))
-                                } else {
-                                    return Err(ReconcileError(anyhow::anyhow!("secret not found")))
-                                }
-                               
-                            },
-                            Err(e) => {return Err(e)}
-                        };
-                        if let Some(address) = bgp_router.spec.address{
-                            /* 
-                            match junos::client::Client::new(address, bgp_router.meta().name.as_ref().unwrap().clone(), key, pem).await{
+                        if let Some(address) = &bgp_router.spec.address{
+                            match junos::client::Client::new(
+                                address.clone(),
+                                bgp_router.meta().name.as_ref().unwrap().clone(),
+                                ctx.key.as_ref().unwrap().clone(),
+                                ctx.ca.as_ref().unwrap().clone(),
+                                ctx.cert.as_ref().unwrap().clone()).await{
                                 Ok(mut client) => {
                                     match client.get().await{
                                         Ok(config) => {
@@ -93,7 +60,6 @@ impl JunosConfigurationController{
                                     return Err(ReconcileError(e.into()))
                                 },
                             }
-                            */
                         }
                         if let Some(status) = bgp_router.status{
                             
