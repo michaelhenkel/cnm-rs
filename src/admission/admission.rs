@@ -31,12 +31,21 @@ impl AdmissionController{
     }
     pub async fn admission(&self) -> anyhow::Result<()>{
         info!("Starting admission controller");
-        let (ca_cert_pem, ca_cert) = match cert::create_ca_key_cert(self.dns.clone()){
-            Ok((ca_cert_pem, ca_cert)) => {
-                (ca_cert_pem, ca_cert)
+        let (ca, kp) = match cert::create_ca_key_cert(self.dns.clone()){
+            Ok(ca_cert_pem) => {
+                ca_cert_pem
             },
             Err(e) => {
                 error!("Failed to create ca key and cert: {}", e);
+                return Err(e);
+            }
+        };
+        let ca_cert = match cert::ca_string_to_certificate(ca.clone(), kp.clone(), false){
+            Ok(ca_cert) => {
+                ca_cert
+            },
+            Err(e) => {
+                error!("Failed to create ca cert: {}", e);
                 return Err(e);
             }
         };
@@ -49,7 +58,7 @@ impl AdmissionController{
                 return Err(e);
             }
         };
-        self.adm_registration(ca_cert_pem).await?;
+        self.adm_registration(ca).await?;
 
         let routes = warp::path("mutate")
             .and(warp::body::json())

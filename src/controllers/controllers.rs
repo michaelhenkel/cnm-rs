@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use kube::{Client, Error, Api, client};
 use k8s_openapi::{NamespaceResourceScope, ClusterResourceScope};
-use kube::api::{ObjectMeta, PostParams};
+use kube::api::{ObjectMeta, PostParams, DeleteParams};
 use serde::de::DeserializeOwned;
 use tracing::info;
 use std::collections::BTreeMap;
@@ -9,9 +9,6 @@ use std::{fmt::Debug, borrow::BorrowMut};
 use std::sync::Arc;
 use serde::Serialize;
 use kube::api::{Patch, PatchParams, ListParams, ObjectList};
-
-
-
 
 #[derive(Debug)]
 pub struct ReconcileError(pub anyhow::Error);
@@ -142,6 +139,29 @@ T: Clone + DeserializeOwned + Debug,
     Ok(res)
 }
 
+pub async fn delete<T: kube::Resource>(namespace: String, name: String, client: Client) -> Result<(), ReconcileError>
+where
+T: kube::Resource<Scope = NamespaceResourceScope>,
+<T as kube::Resource>::DynamicType: Default,
+T: Clone + DeserializeOwned + Debug,
+{
+    let res_api: Api<T> = Api::namespaced(client.clone(), namespace.as_str());
+    let dp = DeleteParams::default();
+    match res_api.delete(name.as_str(), &dp).await{
+        Ok(_res) => {
+            
+        },
+        Err(e) => {
+            if is_not_found(&e){
+                info!("Resource not found: {:?}", e);
+            } else {
+                return Err(ReconcileError(e.into()));
+            }
+        },
+    }
+    Ok(())
+}
+
 pub async fn get_cluster<T: kube::Resource>(name: String, client: Client) -> Result<Option<(T,Api<T>)>, ReconcileError>
 where
 T: kube::Resource<Scope = ClusterResourceScope>,
@@ -197,7 +217,7 @@ T: kube::Resource<Scope = NamespaceResourceScope>,
 <T as kube::Resource>::DynamicType: Default,
 T: Clone + DeserializeOwned + Debug + Serialize,
 {
-    info!("Creating {:?}", t);
+    info!("Creating {:?}", t.meta().name.as_ref().unwrap());
     let res_api: Api<T> = Api::namespaced(client.clone(), t.meta().namespace.as_ref().unwrap());
     let res = match res_api.create(&PostParams::default(), &t).await{
         Ok(res) => {

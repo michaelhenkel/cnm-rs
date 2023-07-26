@@ -6,6 +6,7 @@ use cnm_rs::controllers::controllers;
 use k8s_openapi::api::core::v1 as core_v1;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
 use base64::{Engine as _, engine::{self, general_purpose}, alphabet};
+use kube_runtime::controller;
 use std::io::Write;
 use data_encoding::HEXUPPER;
 use ring::error::Unspecified;
@@ -13,6 +14,8 @@ use ring::rand::SecureRandom;
 use ring::{digest, pbkdf2, rand};
 use std::num::NonZeroU32;
 use std::io::Read;
+use pwhash::unix;
+use pwhash::bcrypt;
 
 
 #[tokio::main]
@@ -30,17 +33,55 @@ pub async fn main() -> anyhow::Result<()> {
         Ok(pod_namespace) => { pod_namespace }
         Err(e) => { return Err(e.into())}
     };
-    let (key, cert) = cert::get_cert(pod_name.as_str(), pod_ip.as_str())?;
 
-    let (ca_cert_string, ca_cert) = match cert::create_ca_key_cert(pod_name.clone()){
-        Ok((ca_cert_string, ca_cert)) => {
-            (ca_cert_string, ca_cert)
+    let client = Client::try_default().await?;
+
+    let (ca, kp) = match controllers::get::<core_v1::Secret>(pod_namespace.clone(), 
+    "cnm-ca".to_string(), client.clone()).await{
+        Ok(ca_secret) => {
+            match ca_secret {
+                Some((secret, _)) => {
+                    let ca = match secret.data.as_ref().unwrap().get("ca.crt"){
+                        Some(ca) => {
+                            match std::str::from_utf8(&ca.0){
+                                Ok(ca) => {
+                                    ca
+                                },
+                                Err(e) => {return Err(anyhow::anyhow!("ca.crt is not valid utf8"))}
+                            }
+                        }
+                        None => {return Err(anyhow::anyhow!("ca.crt not found in secret"))}
+                    };
+                    let kp = match secret.data.as_ref().unwrap().get("kp.crt"){
+                        Some(kp) => {
+                            match std::str::from_utf8(&kp.0){
+                                Ok(kp) => {
+                                    kp
+                                },
+                                Err(e) => {return Err(anyhow::anyhow!("kp.crt is not valid utf8"))}
+                            }
+                        }
+                        None => {return Err(anyhow::anyhow!("kp.crt not found in secret"))}
+                    };
+                    (ca.to_string(), kp.to_string())
+                },
+                None => {
+                    return Err(anyhow::anyhow!("ca secret not found"));
+                }
+            }
         },
-        Err(e) => {
-            return Err(e);
-        }
+        Err(e) => { return Err(e.into())},
     };
 
+    let ca_cert = match cert::ca_string_to_certificate(ca.clone(), kp.clone(), false){
+        Ok(ca_cert) => {
+            ca_cert
+        },
+        Err(e) => {
+            return Err(e.into());
+        }
+    };
+    
     let (private_key, signed_cert) = match cert::create_sign_private_key(pod_name.clone(), pod_ip.clone(), ca_cert){
         Ok((private_key, signed_cert)) => {
             (private_key, signed_cert)
@@ -49,6 +90,8 @@ pub async fn main() -> anyhow::Result<()> {
             return Err(e);
         }
     };
+
+    controllers::delete::<core_v1::Secret>(pod_namespace.clone(), pod_name.clone(), client.clone()).await?;
 
     let secret = core_v1::Secret{
         metadata: meta_v1::ObjectMeta{
@@ -61,22 +104,22 @@ pub async fn main() -> anyhow::Result<()> {
             BTreeMap::from([
                 ("tls.crt".to_string(), ByteString(signed_cert.as_bytes().to_vec())),
                 ("tls.key".to_string(), ByteString(private_key.as_bytes().to_vec())),
-                ("ca.crt".to_string(), ByteString(ca_cert_string.as_bytes().to_vec())),
+                ("ca.crt".to_string(), ByteString(ca.as_bytes().to_vec())),
             ])),
         ..Default::default()
     };
-    let client = Client::try_default().await?;
+    
     controllers::create_or_update(secret, client).await?;
     //write the cert to a file
     let mut cert_file = std::fs::File::create("/etc/certs/tls.crt")?;
-    cert_file.write_all(&cert.as_bytes())?;
+    cert_file.write_all(&signed_cert.as_bytes())?;
     let mut key_file = std::fs::File::create("/etc/certs/tls.key")?;
-    key_file.write_all(&key.as_bytes())?;
+    key_file.write_all(&private_key.as_bytes())?;
     //concat the cert and key into a pem file
     let mut pem_file = std::fs::File::create("/etc/certs/tls.pem")?;
-    pem_file.write_all(&cert.as_bytes())?;
-    pem_file.write_all(&key.as_bytes())?;
-
+    pem_file.write_all(&private_key.as_bytes())?;
+    pem_file.write_all(&signed_cert.as_bytes())?;
+    
     let single_line_cert = read_file("/etc/certs/tls.pem")?;
     if let Ok(passwpord) = gen_password("Juniper123") {
         write_config(&generate_config(&passwpord, &single_line_cert))?;
@@ -88,25 +131,9 @@ pub async fn main() -> anyhow::Result<()> {
 
 }
 
-fn gen_password(pwd: &str) -> Result<String, Unspecified>{
-    const CREDENTIAL_LEN: usize = digest::SHA512_OUTPUT_LEN;
-    let n_iter = NonZeroU32::new(100_000).unwrap();
-    let rng = rand::SystemRandom::new();
-
-    let mut salt = [0u8; CREDENTIAL_LEN];
-    rng.fill(&mut salt)?;
-
-    
-    let mut pbkdf2_hash = [0u8; CREDENTIAL_LEN];
-    pbkdf2::derive(
-        pbkdf2::PBKDF2_HMAC_SHA512,
-        n_iter,
-        &salt,
-        pwd.as_bytes(),
-        &mut pbkdf2_hash,
-    );
-
-    Ok(HEXUPPER.encode(&pbkdf2_hash))
+fn gen_password(pwd: &str) -> anyhow::Result<String>{
+    let h = bcrypt::hash(pwd).unwrap();
+    Ok(unix::crypt(pwd, h.as_str())?)
 }
 
 // base_config is a multiline string that contains the base configuration for the device
@@ -118,15 +145,27 @@ system {
         encrypted-password "PASSWORD";
     }
     services {
+        ssh {
+            root-login allow;
+            port 24;
+        }
         extension-service {
             request-response {
                 grpc {
                     ssl {
-                        port 50051;
+                        port 50052;
                         local-certificate grpc;
                     }
-                }
+                    skip-authentication;
+                }  
             }
+            traceoptions {
+                file jsd;
+                flag all;
+            }
+        }
+        netconf {
+            ssh;
         }
     }
 }
@@ -175,33 +214,4 @@ fn gzip_config() -> Result<(), std::io::Error> {
     let mut file = std::fs::File::create("/config/juniper.conf.gz")?;
     file.write_all(&compressed_contents)?;
     Ok(())
-}
-
-fn decode(secret: &core_v1::Secret) -> BTreeMap<String, Decoded> {
-    let mut res = BTreeMap::new();
-    // Ignoring binary data for now
-    if let Some(data) = secret.data.clone() {
-        for (k, v) in data {
-            if let Ok(b) = std::str::from_utf8(&v.0) {
-                res.insert(k, Decoded::Utf8(b.to_string()));
-            } else {
-                res.insert(k, Decoded::Bytes(v.0));
-            }
-        }
-    }
-    res
-}
-
-fn encode(key: String, value: String ) -> BTreeMap<String, ByteString>{
-    let mut res = BTreeMap::new();
-    res.insert(key, ByteString(value.as_bytes().to_vec()));
-    res
-}
-
-#[derive(Debug)]
-enum Decoded {
-    /// Usually secrets are just short utf8 encoded strings
-    Utf8(String),
-    /// But it's allowed to just base64 encode binary in the values
-    Bytes(Vec<u8>),
 }

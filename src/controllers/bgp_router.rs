@@ -30,7 +30,7 @@ impl BgpRouterController{
         BgpRouterController{context, resource}
     }
     async fn reconcile(g: Arc<BgpRouter>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
-        info!("reconciling BgpRouter {:?}", g.meta());
+        info!("reconciling BgpRouter {:?}", g.meta().name.as_ref().unwrap().clone());
         match controllers::get::<BgpRouter>(
             g.meta().namespace.as_ref().unwrap().clone(),
             g.meta().name.as_ref().unwrap().clone(),

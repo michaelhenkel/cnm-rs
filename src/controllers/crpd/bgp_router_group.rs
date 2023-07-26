@@ -36,7 +36,7 @@ impl BgpRouterGroupController{
         BgpRouterGroupController{context, resource}
     }
     async fn reconcile(g: Arc<BgpRouterGroup>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
-        info!("reconciling BgpRouterGroup {:?}", g.meta());
+        info!("reconciling BgpRouterGroup {:?}", g.meta().name.as_ref().unwrap().clone());
         match controllers::get::<BgpRouterGroup>(
             g.meta().namespace.as_ref().unwrap().clone(),
             g.meta().name.as_ref().unwrap().clone(),

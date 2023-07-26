@@ -10,7 +10,9 @@ fn build_config(){
     .client_mod_attribute("attrs", "#[cfg(feature = \"client\")]")
     //.client_attribute("ConfigController", "#[derive(PartialEq)]")
     .compile(
-        &["src/controllers/crpd/junos/proto/jnx_management_service.proto"],
+        &["src/controllers/crpd/junos/proto/jnx_management_service.proto",
+        "src/controllers/crpd/junos/proto/jnx_common_base_types.proto",
+        "src/controllers/crpd/junos/proto/jnx_authentication_service.proto"],
         &["src/controllers/crpd/junos/proto"],
     ).unwrap();
 }

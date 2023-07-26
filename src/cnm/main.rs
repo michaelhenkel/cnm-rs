@@ -23,10 +23,10 @@ use tracing::info;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "cnm")]
     name: Option<String>,
 
-    #[arg(short, long)]
+    #[arg(long, default_value = "default")]
     namespace: Option<String>,
 
     #[arg(short, long)]
@@ -75,36 +75,13 @@ async fn main() -> anyhow::Result<()> {
 
     let client = Client::try_default().await?;
 
-    let secret = match controllers::get::<core_v1::Secret>(namespace.clone(), name.clone(), client.clone()).await{
+    let secret = match controllers::get::<core_v1::Secret>(namespace.clone(), "cnm-ca".to_string(), client.clone()).await{
         Ok(secret) => { secret },
         Err(e) => { return Err(e.into())},
     };
 
-    let (cert, key, ca) = match secret{
+    let (ca, kp) = match secret{
         Some((secret, _api)) => {
-            let key = match secret.data.as_ref().unwrap().get("tls.key"){
-                Some(key) => {
-                    match std::str::from_utf8(&key.0){
-                        Ok(key) => {
-                            key
-                        },
-                        Err(e) => {return Err(anyhow::anyhow!("tls.key is not valid utf8"))}
-                    }
-                    
-                }
-                None => {return Err(anyhow::anyhow!("tls.key not found in secret"))}
-            };
-            let cert = match secret.data.as_ref().unwrap().get("tls.crt"){
-                Some(cert) => {
-                    match std::str::from_utf8(&cert.0){
-                        Ok(cert) => {
-                            cert
-                        },
-                        Err(e) => {return Err(anyhow::anyhow!("tls.crt is not valid utf8"))}
-                    }
-                }
-                None => {return Err(anyhow::anyhow!("tls.crt not found in secret"))}
-            };
             let ca = match secret.data.as_ref().unwrap().get("ca.crt"){
                 Some(ca) => {
                     match std::str::from_utf8(&ca.0){
@@ -116,45 +93,55 @@ async fn main() -> anyhow::Result<()> {
                 }
                 None => {return Err(anyhow::anyhow!("ca.crt not found in secret"))}
             };
-            (cert.to_string(), key.to_string(), ca.to_string())
+            let kp = match secret.data.as_ref().unwrap().get("kp.crt"){
+                Some(kp) => {
+                    match std::str::from_utf8(&kp.0){
+                        Ok(kp) => {
+                            kp
+                        },
+                        Err(e) => {return Err(anyhow::anyhow!("kp.crt is not valid utf8"))}
+                    }
+                }
+                None => {return Err(anyhow::anyhow!("kp.crt not found in secret"))}
+            };
+            (ca.to_string(), kp.to_string())
         },
         None => {
-            let (ca_cert_string, ca_cert) = match cert::create_ca_key_cert(name.clone()){
-                Ok((ca_cert_string, ca_cert)) => {
-                    (ca_cert_string, ca_cert)
+            let (ca, kp)  = match cert::create_ca_key_cert(name.clone()){
+                Ok(ca_cert_string) => {
+                    ca_cert_string
                 },
                 Err(e) => {
                     return Err(e);
                 }
             };
-        
-            let (private_key, signed_cert) = match cert::create_sign_private_key(name.clone(), address.clone(), ca_cert){
-                Ok((private_key, signed_cert)) => {
-                    (private_key, signed_cert)
-                },
-                Err(e) => {
-                    return Err(e);
-                }
-            };
-        
             let secret = core_v1::Secret{
                 metadata: meta_v1::ObjectMeta{
-                    name: Some(name.clone()),
+                    name: Some("cnm-ca".to_string()),
                     namespace: Some(namespace.clone()),
                     ..Default::default()
                 },
-                type_: Some("kubernetes.io/tls".to_string()),
+                //type_: Some("kubernetes.io/tls".to_string()),
                 data: Some(
                     BTreeMap::from([
-                        ("tls.crt".to_string(), ByteString(signed_cert.as_bytes().to_vec())),
-                        ("tls.key".to_string(), ByteString(private_key.as_bytes().to_vec())),
-                        ("ca.crt".to_string(), ByteString(ca_cert_string.as_bytes().to_vec())),
+                        ("ca.crt".to_string(), ByteString(ca.as_bytes().to_vec())),
+                        ("kp.crt".to_string(), ByteString(kp.as_bytes().to_vec())),
                     ])),
                 ..Default::default()
             };
             controllers::create_or_update(secret, client.clone()).await?;
-            (signed_cert, private_key, ca_cert_string)
+            (ca, kp)
         },
+    };
+
+    let ca_test = match cert::ca_string_to_certificate(ca.clone(), kp.clone(), false){
+        Ok(ca_cert) => {
+            ca_cert
+        },
+        Err(e) => {
+            info!("Failed to create ca cert: {}", e);
+            return Err(e.into());
+        }
     };
 
     let mut join_handlers = Vec::new();
@@ -169,8 +156,6 @@ async fn main() -> anyhow::Result<()> {
     ctx.address = Some(address.clone());
     ctx.name = Some(name.clone());
     ctx.namespace = Some(namespace.clone());
-    ctx.cert = Some(cert.clone());
-    ctx.key = Some(key.clone());
     ctx.ca = Some(ca.clone());
 
     let ctx = Arc::new(ctx);
