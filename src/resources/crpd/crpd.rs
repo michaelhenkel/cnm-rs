@@ -12,6 +12,7 @@ use kube::{
 };
 use async_trait::async_trait;
 use k8s_openapi::api::apps::v1 as apps_v1;
+use k8s_openapi::api::core::v1 as core_v1;
 use k8s_openapi::Metadata;
 use kube::api::ObjectMeta;
 use std::collections::HashMap;
@@ -37,6 +38,7 @@ pub struct CrpdSpec {
 pub struct CrpdStatus {
     pub stateful_set: Option<apps_v1::StatefulSetStatus>,
     pub instances: Option<Vec<Instance>>,
+    pub bgp_router_group_references: Option<Vec<core_v1::ObjectReference>>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]

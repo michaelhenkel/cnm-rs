@@ -29,9 +29,9 @@ pub struct BgpRouterGroupSpec {
     pub discover: bool,
     #[garde(skip)]
     pub bgp_router_template: BgpRouterSpec,
-    #[garde(skip)]
-    pub selector: meta_v1::LabelSelector,
 }
+
+
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]

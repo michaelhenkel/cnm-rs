@@ -1,13 +1,14 @@
 apiVersion: cnm.juniper.net/v1
 kind: BgpRouterGroup
 metadata:
-  name: crpd1
+  name: crpd2
 spec:
   discover: true
-  selector:
-    matchLabels:
-      name: crpd1
   bgpRouterTemplate:
+    instanceParent:
+      name: crpd1
+    routingInstanceParent:
+      name: ri1
     managed: true
     routerType: Crpd
     autonomousSystemNumber: 1

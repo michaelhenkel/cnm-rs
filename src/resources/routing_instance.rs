@@ -16,6 +16,7 @@ use async_trait::async_trait;
 use crate::controllers::crpd::junos::routing_instance::Instance;
 
 use crate::resources::resources::Resource;
+use k8s_openapi::api::core::v1 as core_v1;
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
 #[kube(group = "cnm.juniper.net", version = "v1", kind = "RoutingInstance", namespaced)]
@@ -23,13 +24,12 @@ use crate::resources::resources::Resource;
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
 pub struct RoutingInstanceSpec {
     #[garde(skip)]
-    pub instance: Instance,
-    #[garde(skip)]
-    pub selector: meta_v1::LabelSelector,
+    pub parent: core_v1::ObjectReference,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 pub struct RoutingInstanceStatus {
+    pub bgp_router_group_references: Option<Vec<core_v1::ObjectReference>>,
 }
 
 pub struct RoutingInstanceResource{

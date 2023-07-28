@@ -3,4 +3,7 @@ kind: RoutingInstance
 metadata:
   name: ri1
 spec:
-  info: infofield
+  parent:
+    name: crpd1
+    kind: Crpd
+    namespace: default

@@ -1,3 +1,4 @@
+use crate::resources::routing_instance::RoutingInstance;
 use crate::resources::{
     bgp_router,
     bgp_router_group
@@ -130,6 +131,20 @@ fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionRespon
                 if let Some(spec) = obj.data.get("spec"){
                     let bgp_router_group_spec = serde_json::from_value::<bgp_router_group::BgpRouterGroupSpec>(spec.clone())?;
                     labels.insert("cnm.juniper.net~1bgpRouterType", bgp_router_group_spec.bgp_router_template.router_type.to_string());
+
+                    match bgp_router_group_spec.bgp_router_template.instance_parent{
+                        Some(instance_parent) => {
+                            labels.insert("cnm.juniper.net~1instanceSelector", instance_parent.name.as_ref().unwrap().clone());
+                        },
+                        None => {}
+                    }
+
+                    match bgp_router_group_spec.bgp_router_template.routing_instance_parent{
+                        Some(instance_parent) => {
+                            labels.insert("cnm.juniper.net~1routingInstance", instance_parent.name.as_ref().unwrap().clone());
+                        },
+                        None => {}
+                    }
                 }
             },
             _ => {
@@ -138,7 +153,7 @@ fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionRespon
         }
 
         let mut patches = Vec::new();
-
+        info!("Labels: {:?}", labels);
         // Ensure labels exist before adding a key to it
         if obj.meta().labels.is_none() {
             patches.push(json_patch::PatchOperation::Add(json_patch::AddOperation {

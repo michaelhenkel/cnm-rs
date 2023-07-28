@@ -12,6 +12,7 @@ use kube::{
 };
 use async_trait::async_trait;
 use k8s_openapi::api::core::v1 as core_v1;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
 use std::fmt::{Display, Result, Formatter};
 
 use crate::resources::resources::Resource;
@@ -73,6 +74,26 @@ pub struct BgpRouterSpec {
     #[garde(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bgp_peer_references: Option<Vec<BgpPeeringReference>>,
+    #[garde(skip)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instance_parent: Option<core_v1::ObjectReference>,
+    #[garde(skip)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_instance_parent: Option<core_v1::ObjectReference>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum BgpRouterParent{
+
+    Selector(meta_v1::LabelSelector),
+    RoutingInstance(core_v1::ObjectReference),
+}
+
+impl Default for BgpRouterParent{
+    fn default() -> Self{
+        BgpRouterParent::Selector(meta_v1::LabelSelector::default())
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]

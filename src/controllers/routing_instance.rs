@@ -1,6 +1,11 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
-use crate::controllers::controllers;
-use crate::resources::routing_instance::RoutingInstance;
+use crate::controllers::crpd::junos::bgp;
+use crate::controllers::{controllers, bgp_router};
+use crate::resources::bgp_router_group::BgpRouterGroup;
+use crate::resources::routing_instance::{
+    RoutingInstance,
+    RoutingInstanceStatus
+};
 use kube::Resource;
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -12,9 +17,11 @@ use kube::{
         watcher::Config,
     },
 };
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
+use k8s_openapi::api::core::v1 as core_v1;
 
 pub struct RoutingInstanceController{
     context: Arc<Context>,
@@ -22,13 +29,14 @@ pub struct RoutingInstanceController{
 }
 
 impl RoutingInstanceController{
-    pub fn new(client: Client) -> Self{
-        let resource = Api::all(client.clone());
-        let context = Arc::new(Context::new(client.clone()));
+    pub fn new(context: Arc<Context>) -> Self{
+        let resource = Api::all(context.client.clone());
+        
         RoutingInstanceController{context, resource}
     }
     async fn reconcile(g: Arc<RoutingInstance>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
         info!("reconciling RoutingInstance {:?}", g.meta().name.as_ref().unwrap().clone());
+        
         match controllers::get::<RoutingInstance>(
             g.meta().namespace.as_ref().unwrap().clone(),
             g.meta().name.as_ref().unwrap().clone(),
@@ -37,11 +45,46 @@ impl RoutingInstanceController{
             Ok(res) => {
                 match res{
                     Some((mut routing_instance, _api)) => {
-                        let match_labels = if let Some(match_labels) = &routing_instance.spec.selector.match_labels{
-                            match_labels
-                        } else {
-                            return Ok(Action::await_change())
+                        let update_status = match controllers::list::<BgpRouterGroup>(
+                            routing_instance.meta().namespace.as_ref().unwrap().clone(),
+                            ctx.client.clone(),
+                            Some(BTreeMap::from([("cnm.juniper.net/routingInstance".to_string(), routing_instance.meta().name.as_ref().unwrap().clone())]))
+                        ).await{
+                            Ok(res) => {
+                                match res{
+                                    Some((bgp_router_groups, _api)) => {
+                                        let mut bgp_router_group_refs = Vec::new();
+                                        for bgp_router_group in bgp_router_groups{
+                                            let bgp_router_group_ref = core_v1::ObjectReference{
+                                                api_version: Some("cnm.juniper.net/v1".to_string()),
+                                                kind: Some("BgpRouterGroup".to_string()),
+                                                name: Some(bgp_router_group.meta().name.as_ref().unwrap().clone()),
+                                                namespace: Some(bgp_router_group.meta().namespace.as_ref().unwrap().clone()),
+                                                ..Default::default()
+                                            };
+                                            bgp_router_group_refs.push(bgp_router_group_ref);
+                                        }
+                                        if let Some(status) = routing_instance.status.as_mut(){
+                                            status.bgp_router_group_references = Some(bgp_router_group_refs);
+                                        } else {
+                                            let status = RoutingInstanceStatus{
+                                                bgp_router_group_references: Some(bgp_router_group_refs),
+                                            };
+                                            routing_instance.status = Some(status);
+                                        }
+                                        true
+                                    },
+                                    None => false
+                                }
+                            },
+                            Err(e) => return Err(e)
                         };
+                        if update_status{
+                            match controllers::update_status(routing_instance, ctx.client.clone()).await{
+                                Ok(_res) => {},
+                                Err(e) => return Err(e)
+                            }
+                        }
                     }
                     None => {}
                 }
@@ -49,6 +92,7 @@ impl RoutingInstanceController{
             Err(e) => return Err(e)
             
         }
+    
         Ok(Action::await_change())
     }
     fn error_policy(g: Arc<RoutingInstance>, error: &ReconcileError, ctx: Arc<Context>) -> Action {

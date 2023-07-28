@@ -1,5 +1,7 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError, self};
+use crate::resources::bgp_router::BgpRouterType;
 use crate::resources::crpd::crpd::{Crpd, CrpdStatus, Instance};
+use crate::resources::bgp_router_group::BgpRouterGroup;
 use async_trait::async_trait;
 use futures::StreamExt;
 use kube::Resource;
@@ -42,6 +44,46 @@ impl CrpdController{
             Ok(res) => {
                 match res{
                     Some((mut crpd, _crpd_api)) => {
+                        match controllers::list::<BgpRouterGroup>(
+                            crpd.meta().namespace.as_ref().unwrap().clone(),
+                            ctx.client.clone(),
+                            Some(BTreeMap::from([("cnm.juniper.net/instanceSelector".to_string(), crpd.meta().name.as_ref().unwrap().clone())]))).await{
+                                Ok(res) => {
+                                    match res{
+                                        Some((bgp_router_group_list, _)) => {
+                                            let mut bgp_router_group_ref_list = Vec::new();
+                                            for bgp_router_group in &bgp_router_group_list{
+                                                let bgp_router_group_ref = core_v1::ObjectReference{
+                                                    api_version: Some("cnm.juniper.net/v1".to_string()),
+                                                    kind: Some("BgpRouterGroup".to_string()),
+                                                    name: Some(bgp_router_group.meta().name.as_ref().unwrap().clone()),
+                                                    namespace: Some(bgp_router_group.meta().namespace.as_ref().unwrap().clone()),
+                                                    uid: Some(bgp_router_group.meta().uid.as_ref().unwrap().clone()),
+                                                    ..Default::default()
+                                                };
+                                                bgp_router_group_ref_list.push(bgp_router_group_ref);
+                                            }
+                                            
+                                            let status = match crpd.clone().status{
+                                                Some(mut status) => {
+                                                    status.bgp_router_group_references = Some(bgp_router_group_ref_list);
+                                                    status
+                                                },
+                                                None => {
+                                                    let status = Some(CrpdStatus{
+                                                        bgp_router_group_references: Some(bgp_router_group_ref_list),
+                                                        ..Default::default()
+                                                    });
+                                                    status.unwrap()
+                                                },
+                                            };
+                                            crpd.status = Some(status.clone());
+                                        },
+                                        None => {}
+                                    };
+                                },
+                                Err(e) => return Err(e),
+                        };
                         let sts = apps_v1::StatefulSet::from(crpd.clone());
                         match controllers::create_or_update(sts.clone(), ctx.client.clone()).await{
                             Ok(sts) => {
@@ -104,13 +146,6 @@ impl CrpdController{
                                                 },
                                         }
                                         crpd.status.as_mut().unwrap().instances = Some(instances);                                        
-                                        match controllers::update_status(crpd, ctx.client.clone()).await{
-                                            Ok(crpd) => {
-                                            },
-                                            Err(e) => {
-                                                return Err(e);
-                                            },
-                                        }
                                     },
                                     None => {},
                                 }
@@ -119,6 +154,13 @@ impl CrpdController{
                                 return Err(e);
                             },
                         }
+                        match controllers::update_status(crpd, ctx.client.clone()).await{
+                            Ok(crpd) => {
+                            },
+                            Err(e) => {
+                                return Err(e);
+                            },
+                        };
                         Ok(Action::await_change())
                     },
                     None => {
@@ -215,6 +257,35 @@ impl Controller for CrpdController{
                             None
                         },
                     }
+                }
+            )
+            .watches(
+                Api::<BgpRouterGroup>::all(self.context.client.clone()),
+                Config::default(),
+                |bgp_router_group| {
+                    match bgp_router_group.spec.bgp_router_template.router_type{
+                        BgpRouterType::Crpd => { 
+                            match &bgp_router_group.meta().labels{
+                                Some(labels) => {
+                                    match labels.get("cnm.juniper.net/instanceSelector"){
+                                        Some(selector_name) => {
+                                            Some(ObjectRef::<Crpd>::new(
+                                                selector_name)
+                                                .within(bgp_router_group.meta().namespace.as_ref().unwrap()))
+                                        },
+                                        None => {
+                                            None
+                                        },
+                                    }
+                                },
+                                None => {
+                                    None
+                                },
+                            }
+                        },
+                        _ => None,
+                    }
+
                 }
             )
             .run(reconcile, error_policy, self.context.clone())
