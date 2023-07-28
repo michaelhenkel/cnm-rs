@@ -1,94 +1,77 @@
 use std::collections::BTreeMap;
-use k8s_openapi::ByteString;
 use kube::Client;
-use cnm_rs::cert::cert;
-use cnm_rs::controllers::controllers;
-use k8s_openapi::api::core::v1 as core_v1;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
-use base64::{Engine as _, engine::{self, general_purpose}, alphabet};
-use kube_runtime::controller;
-use std::io::Write;
-use data_encoding::HEXUPPER;
-use ring::error::Unspecified;
-use ring::rand::SecureRandom;
-use ring::{digest, pbkdf2, rand};
-use std::num::NonZeroU32;
-use std::io::Read;
-use pwhash::unix;
-use pwhash::bcrypt;
+use cnm_rs::{
+    cert::cert,
+    controllers::controllers
+};
+use k8s_openapi::{
+    api::core::v1 as core_v1,
+    apimachinery::pkg::apis::meta::v1 as meta_v1,
+    ByteString
+};
+use std::io::{Write, Read};
+use pwhash::{unix, bcrypt};
 
 
 #[tokio::main]
 pub async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     let pod_ip = match std::env::var("POD_IP"){
-        Ok(pod_ip) => { pod_ip }
-        Err(e) => { return Err(e.into())}
+        Ok(pod_ip) => pod_ip,
+        Err(e) => return Err(e.into())
     };
     let pod_name = match std::env::var("POD_NAME"){
-        Ok(pod_name) => { pod_name }
-        Err(e) => { return Err(e.into())}
+        Ok(pod_name) => pod_name,
+        Err(e) => return Err(e.into())
     };
     let pod_namespace = match std::env::var("POD_NAMESPACE"){
-        Ok(pod_namespace) => { pod_namespace }
-        Err(e) => { return Err(e.into())}
+        Ok(pod_namespace) => pod_namespace,
+        Err(e) => return Err(e.into())
     };
 
     let client = Client::try_default().await?;
 
-    let (ca, kp) = match controllers::get::<core_v1::Secret>(pod_namespace.clone(), 
-    "cnm-ca".to_string(), client.clone()).await{
+    let (ca, kp) = match controllers::get::<core_v1::Secret>(
+        pod_namespace.clone(), 
+        "cnm-ca".to_string(),
+        client.clone()).await{
         Ok(ca_secret) => {
             match ca_secret {
                 Some((secret, _)) => {
                     let ca = match secret.data.as_ref().unwrap().get("ca.crt"){
                         Some(ca) => {
                             match std::str::from_utf8(&ca.0){
-                                Ok(ca) => {
-                                    ca
-                                },
-                                Err(e) => {return Err(anyhow::anyhow!("ca.crt is not valid utf8"))}
+                                Ok(ca) => ca,
+                                Err(e) => return Err(e.into())
                             }
                         }
-                        None => {return Err(anyhow::anyhow!("ca.crt not found in secret"))}
+                        None =>  return Err(anyhow::anyhow!("ca.crt not found in secret"))
                     };
                     let kp = match secret.data.as_ref().unwrap().get("kp.crt"){
                         Some(kp) => {
                             match std::str::from_utf8(&kp.0){
-                                Ok(kp) => {
-                                    kp
-                                },
-                                Err(e) => {return Err(anyhow::anyhow!("kp.crt is not valid utf8"))}
+                                Ok(kp) => {kp},
+                                Err(e) => {return Err(e.into())}
                             }
                         }
-                        None => {return Err(anyhow::anyhow!("kp.crt not found in secret"))}
+                        None => return Err(anyhow::anyhow!("kp.crt not found in secret"))
                     };
                     (ca.to_string(), kp.to_string())
                 },
-                None => {
-                    return Err(anyhow::anyhow!("ca secret not found"));
-                }
+                None => return Err(anyhow::anyhow!("ca secret not found"))
             }
         },
-        Err(e) => { return Err(e.into())},
+        Err(e) => return Err(e.into()),
     };
 
     let ca_cert = match cert::ca_string_to_certificate(ca.clone(), kp.clone(), false){
-        Ok(ca_cert) => {
-            ca_cert
-        },
-        Err(e) => {
-            return Err(e.into());
-        }
+        Ok(ca_cert) =>  ca_cert,
+        Err(e) => return Err(e.into())
     };
     
     let (private_key, signed_cert) = match cert::create_sign_private_key(pod_name.clone(), pod_ip.clone(), ca_cert){
-        Ok((private_key, signed_cert)) => {
-            (private_key, signed_cert)
-        },
-        Err(e) => {
-            return Err(e);
-        }
+        Ok(res) => res,
+        Err(e) => return Err(e)
     };
 
     controllers::delete::<core_v1::Secret>(pod_namespace.clone(), pod_name.clone(), client.clone()).await?;
@@ -136,9 +119,6 @@ fn gen_password(pwd: &str) -> anyhow::Result<String>{
     Ok(unix::crypt(pwd, h.as_str())?)
 }
 
-// base_config is a multiline string that contains the base configuration for the device
-// it is used to configure the device with a base configuration
-// the base configuration is used to configure the device with a base configuration
 const BASE_CONFIG: &str = r#"
 system {
     root-authentication {

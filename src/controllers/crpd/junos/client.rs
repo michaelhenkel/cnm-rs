@@ -1,12 +1,10 @@
-use std::f32::consts::E;
-
 use super::proto::jnx::jet::management as junos_mgmt;
 use super::proto::jnx::jet::authentication as junos_auth;
-use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity};
+use tonic::transport::{Certificate, Channel, ClientTlsConfig};
 use tonic::Request;
 use tonic::metadata::MetadataMap;
 use tracing::info;
-use super::junos;
+use super::bgp;
 use tracing::warn;
 
 pub struct Client {
@@ -54,7 +52,7 @@ impl Client{
             client,
         })
     }
-    pub async fn set(&mut self, config: junos::Configuration) -> anyhow::Result<()>{
+    pub async fn set(&mut self, config: bgp::Configuration) -> anyhow::Result<()>{
         let mut request = junos_mgmt::ConfigSetRequest::default();
         let json_config = serde_json::to_string(&config)?;
         request.config = Some(junos_mgmt::config_set_request::Config::JsonConfig(json_config));

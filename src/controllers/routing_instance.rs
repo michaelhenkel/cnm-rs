@@ -1,5 +1,7 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
+use crate::controllers::controllers;
 use crate::resources::routing_instance::RoutingInstance;
+use kube::Resource;
 use async_trait::async_trait;
 use futures::StreamExt;
 use kube::{
@@ -26,6 +28,27 @@ impl RoutingInstanceController{
         RoutingInstanceController{context, resource}
     }
     async fn reconcile(g: Arc<RoutingInstance>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
+        info!("reconciling RoutingInstance {:?}", g.meta().name.as_ref().unwrap().clone());
+        match controllers::get::<RoutingInstance>(
+            g.meta().namespace.as_ref().unwrap().clone(),
+            g.meta().name.as_ref().unwrap().clone(),
+            ctx.client.clone())
+            .await{
+            Ok(res) => {
+                match res{
+                    Some((mut routing_instance, _api)) => {
+                        let match_labels = if let Some(match_labels) = &routing_instance.spec.selector.match_labels{
+                            match_labels
+                        } else {
+                            return Ok(Action::await_change())
+                        };
+                    }
+                    None => {}
+                }
+            },
+            Err(e) => return Err(e)
+            
+        }
         Ok(Action::await_change())
     }
     fn error_policy(g: Arc<RoutingInstance>, error: &ReconcileError, ctx: Arc<Context>) -> Action {

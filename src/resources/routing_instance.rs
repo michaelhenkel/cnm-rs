@@ -6,12 +6,14 @@ use tokio::time::sleep;
 use tracing::*;
 
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
 use kube::{
     api::{Api, PostParams, ResourceExt},
     core::crd::CustomResourceExt,
     Client, CustomResource,
 };
 use async_trait::async_trait;
+use crate::controllers::crpd::junos::routing_instance::Instance;
 
 use crate::resources::resources::Resource;
 
@@ -20,15 +22,14 @@ use crate::resources::resources::Resource;
 #[kube(status = "RoutingInstanceStatus")]
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
 pub struct RoutingInstanceSpec {
-    #[schemars(length(min = 1))]
-    #[garde(length(min = 3))]
-    info: String,
+    #[garde(skip)]
+    pub instance: Instance,
+    #[garde(skip)]
+    pub selector: meta_v1::LabelSelector,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 pub struct RoutingInstanceStatus {
-    is_bad: bool,
-    replicas: i32,
 }
 
 pub struct RoutingInstanceResource{

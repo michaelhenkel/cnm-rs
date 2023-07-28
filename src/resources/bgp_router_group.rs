@@ -16,6 +16,7 @@ use async_trait::async_trait;
 use crate::resources::resources::Resource;
 use crate::resources::bgp_router::{BgpRouterSpec, BgpRouterType};
 use k8s_openapi::api::core::v1 as core_v1;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
 #[kube(group = "cnm.juniper.net", version = "v1", kind = "BgpRouterGroup", namespaced)]
@@ -28,6 +29,8 @@ pub struct BgpRouterGroupSpec {
     pub discover: bool,
     #[garde(skip)]
     pub bgp_router_template: BgpRouterSpec,
+    #[garde(skip)]
+    pub selector: meta_v1::LabelSelector,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]

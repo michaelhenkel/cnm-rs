@@ -45,9 +45,16 @@ impl JunosConfigurationController{
                     Some((bgp_router, _)) => {
                         info!("junos config controller reconciles bgprouter config");
                         if let Some(address) = &bgp_router.spec.address{
+                            let mut pod_name = None;
+                            bgp_router.meta().owner_references.as_ref().unwrap().iter().for_each(|owner: &meta_v1::OwnerReference| {
+                                info!("owner: {:#?}", owner);
+                                if owner.kind == "Pod"{
+                                    pod_name = Some(owner.name.clone())
+                                }
+                            });
                             match junos::client::Client::new(
                                 address.clone(),
-                                bgp_router.meta().name.as_ref().unwrap().clone(),
+                                pod_name.as_ref().unwrap().clone(),
                                 ctx.key.as_ref().unwrap().clone(),
                                 ctx.ca.as_ref().unwrap().clone(),
                                 ctx.cert.as_ref().unwrap().clone()).await{

@@ -78,7 +78,7 @@ impl CrpdController{
                                         ]);
                                         let mut instances = Vec::new();
                                         match controllers::list::<core_v1::Pod>(
-                                            sts.meta().namespace.as_ref().unwrap().as_str(),
+                                            sts.meta().namespace.as_ref().unwrap().clone(),
                                             ctx.client.clone(),
                                             Some(labels))
                                             .await{

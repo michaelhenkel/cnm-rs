@@ -1,3 +1,10 @@
-pub mod junos;
+pub mod bgp;
 pub mod proto;
 pub mod client;
+pub mod routing_instance;
+pub mod common;
+pub mod family;
+pub mod evpn;
+pub mod interface;
+pub mod routing_options;
+pub mod protocol;

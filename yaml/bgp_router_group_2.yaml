@@ -1,7 +1,7 @@
 apiVersion: cnm.juniper.net/v1
 kind: BgpRouterGroup
 metadata:
-  name: crpd1
+  name: crpd2
 spec:
   discover: true
   selector:

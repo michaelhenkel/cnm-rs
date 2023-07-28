@@ -185,13 +185,13 @@ T: Clone + DeserializeOwned + Debug,
     Ok(res)
 }
 
-pub async fn list<T: kube::Resource>(namespace: &str, client: Client, labels: Option<BTreeMap<String, String>>) -> Result<Option<(ObjectList<T>,Api<T>)>, ReconcileError>
+pub async fn list<T: kube::Resource>(namespace: String, client: Client, labels: Option<BTreeMap<String, String>>) -> Result<Option<(ObjectList<T>,Api<T>)>, ReconcileError>
 where
 T: kube::Resource<Scope = NamespaceResourceScope>,
 <T as kube::Resource>::DynamicType: Default,
 T: Clone + DeserializeOwned + Debug,
 {
-    let res_api: Api<T> = Api::namespaced(client.clone(), namespace);
+    let res_api: Api<T> = Api::namespaced(client.clone(), namespace.as_str());
     let mut list_params = ListParams::default();
     for (k, v) in labels.unwrap().iter(){
         list_params.label_selector = Some(format!("{}={}", k, v));
