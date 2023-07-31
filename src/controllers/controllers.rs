@@ -8,6 +8,8 @@ use std::collections::BTreeMap;
 use std::{fmt::Debug, borrow::BorrowMut};
 use std::sync::Arc;
 use serde::Serialize;
+use serde_json::Value;
+use serde_json::json;
 use kube::api::{Patch, PatchParams, ListParams, ObjectList};
 
 #[derive(Debug)]
@@ -402,4 +404,71 @@ T: Clone + DeserializeOwned + Debug + Serialize,
         },
     };
     Ok(res)
+}
+
+pub enum ReconcileAction {
+    Create,
+    Delete,
+    NoOp,
+}
+
+pub fn action<T: kube::Resource>(t: &T) -> ReconcileAction 
+where
+    T: kube::Resource<Scope = NamespaceResourceScope>,
+    <T as kube::Resource>::DynamicType: Default,
+    T: Clone + DeserializeOwned + Debug + Serialize,
+{
+    return if t.meta().deletion_timestamp.is_some() {
+        ReconcileAction::Delete
+    } else if t.meta().finalizers.is_none() {
+        ReconcileAction::Create
+    } else {
+        ReconcileAction::NoOp
+    };
+}
+
+pub async fn add_finalizer<T: kube::Resource>(api: Api<T>, name: &str) -> Result<T, ReconcileError>
+where
+    T: kube::Resource<Scope = NamespaceResourceScope>,
+    <T as kube::Resource>::DynamicType: Default,
+    T: Clone + DeserializeOwned + Debug + Serialize,
+{
+    let finalizer: Value = json!({
+        "metadata": {
+            "finalizers": ["cnm.juniper.net/finalizer"]
+        }
+    });
+
+    let patch: Patch<&Value> = Patch::Merge(&finalizer);
+    match api.patch(name, &PatchParams::default(), &patch).await{
+       Ok(res) => {
+           Ok(res)
+       },
+       Err(e) => {
+        return Err(ReconcileError(e.into()))
+       }
+    }
+}
+
+pub async fn del_finalizer<T: kube::Resource>(api: Api<T>, name: &str) -> Result<T, ReconcileError>
+where
+    T: kube::Resource<Scope = NamespaceResourceScope>,
+    <T as kube::Resource>::DynamicType: Default,
+    T: Clone + DeserializeOwned + Debug + Serialize,
+{
+    let finalizer: Value = json!({
+        "metadata": {
+            "finalizers": null
+        }
+    });
+
+    let patch: Patch<&Value> = Patch::Merge(&finalizer);
+    match api.patch(name, &PatchParams::default(), &patch).await{
+        Ok(res) => {
+            Ok(res)
+        },
+        Err(e) => {
+         return Err(ReconcileError(e.into()))
+        }
+     }
 }

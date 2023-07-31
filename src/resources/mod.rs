@@ -4,3 +4,5 @@ pub mod virtual_network;
 pub mod bgp_router;
 pub mod bgp_router_group;
 pub mod crpd;
+pub mod pool;
+pub mod ip_address;

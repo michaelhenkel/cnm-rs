@@ -1,0 +1,9 @@
+apiVersion: cnm.juniper.net/v1
+kind: Pool
+metadata:
+  name: pool1
+spec:
+  poolType:
+    v4:
+      prefix: 10.0.0.0
+      length: 24

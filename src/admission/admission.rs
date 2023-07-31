@@ -1,7 +1,8 @@
 use crate::resources::routing_instance::RoutingInstance;
 use crate::resources::{
     bgp_router,
-    bgp_router_group
+    bgp_router_group,
+    ip_address
 };
 use crate::controllers::controllers;
 use kube::{core::{
@@ -118,6 +119,13 @@ fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionRespon
         info!("Kind: {}", types.kind);
         let mut labels = HashMap::new();
         match types.kind.as_str(){
+            "IpAddress" => {
+                info!("IpAddress: {}", obj.data);
+                if let Some(spec) = obj.data.get("spec"){
+                    let ip_address_spec = serde_json::from_value::<ip_address::IpAddressSpec>(spec.clone())?;
+                    labels.insert("cnm.juniper.net~1pool", ip_address_spec.pool.name.as_ref().unwrap().clone());
+                }
+            },
             "BgpRouter" => {
                 info!("BgpRouter: {}", obj.data);
                 if let Some(spec) = obj.data.get("spec"){

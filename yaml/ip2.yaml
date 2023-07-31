@@ -1,0 +1,8 @@
+apiVersion: cnm.juniper.net/v1
+kind: IpAddress
+metadata:
+  name: ip2
+spec:
+  family: v4
+  pool:
+    name: pool1

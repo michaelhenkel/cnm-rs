@@ -1,70 +1,61 @@
 use garde::Validate;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{time::Duration, collections::BTreeMap};
+use std::time::Duration;
 use tokio::time::sleep;
 use tracing::*;
+
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
 use kube::{
     api::{Api, PostParams, ResourceExt},
     core::crd::CustomResourceExt,
     Client, CustomResource,
 };
 use async_trait::async_trait;
-use k8s_openapi::api::apps::v1 as apps_v1;
-use k8s_openapi::api::core::v1 as core_v1;
-use k8s_openapi::Metadata;
-use kube::api::ObjectMeta;
-use std::collections::HashMap;
+use crate::controllers::crpd::junos::routing_instance::Instance;
 
 use crate::resources::resources::Resource;
+use k8s_openapi::api::core::v1 as core_v1;
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
-#[kube(group = "cnm.juniper.net", version = "v1", kind = "Crpd", namespaced)]
-#[kube(status = "CrpdStatus")]
+#[kube(group = "cnm.juniper.net", version = "v1", kind = "IpAddress", namespaced)]
+#[kube(status = "IpAddressStatus")]
 #[serde(rename_all = "camelCase")]
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
-pub struct CrpdSpec {
+pub struct IpAddressSpec {
     #[garde(skip)]
-    pub replicas: i32,
+    pub family: IpFamily,
     #[garde(skip)]
-    pub image: String,
-    #[garde(skip)]
-    pub init_image: String,
-    #[garde(skip)]
-    pub lookpback_pool: String,
+    pub pool: core_v1::LocalObjectReference,
 }
 
-
-#[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
-pub struct CrpdStatus {
-    pub stateful_set: Option<apps_v1::StatefulSetStatus>,
-    pub instances: Option<Vec<Instance>>,
-    pub bgp_router_group_references: Option<Vec<core_v1::ObjectReference>>,
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum IpFamily{
+    V4,
+    V6
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
-pub struct Instance{
-    pub name: String,
+#[serde(rename_all = "camelCase")]
+pub struct IpAddressStatus {
     pub address: String,
-    pub uuid: String,
-    //pub loopback_address: String,
 }
 
-pub struct CrpdResource{
+pub struct IpAddressResource{
     client: Client,
     name: String,
     group: String,
     version: String,
 }
 
-
-impl CrpdResource{
+impl IpAddressResource{
     pub fn new(client: Client) -> Self{
-        let name = "crpds".to_string();
+        let name = "ipaddresss".to_string();
         let group = "cnm.juniper.net".to_string();
         let version = "v1".to_string();
-        CrpdResource{
+        IpAddressResource{
             client,
             name,
             group,
@@ -74,7 +65,7 @@ impl CrpdResource{
 }
 
 #[async_trait]
-impl Resource for CrpdResource{
+impl Resource for IpAddressResource{
     fn client(&self) -> Client{
         self.client.clone()
     }
@@ -89,7 +80,7 @@ impl Resource for CrpdResource{
     }
     async fn create(&self) -> anyhow::Result<()>{
         let crds: Api<CustomResourceDefinition> = Api::all(self.client.clone());
-        let crd = Crpd::crd();
+        let crd = IpAddress::crd();
         info!("Creating CRD: {}",self.name);
         let pp = PostParams::default();
         match crds.create(&pp, &crd).await {
@@ -99,6 +90,7 @@ impl Resource for CrpdResource{
             Err(kube::Error::Api(ae)) => assert_eq!(ae.code, 409), // if you skipped delete, for instance
             Err(e) => return Err(e.into()),                        // any other case is probably bad
         }
+        // Wait for the api to catch up
         sleep(Duration::from_secs(1)).await;
         Ok(())
     }

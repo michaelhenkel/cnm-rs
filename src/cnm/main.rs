@@ -6,6 +6,8 @@ use cnm_rs::controllers::{
     crpd::bgp_router_group::BgpRouterGroupController,
     crpd::junos_configuration::JunosConfigurationController,
     routing_instance::RoutingInstanceController,
+    pool::PoolController,
+    ip_address::IpAddressController,
     controllers,
 };
 use cnm_rs::admission;
@@ -166,6 +168,8 @@ async fn main() -> anyhow::Result<()> {
         Box::new(resources::bgp_router::BgpRouterResource::new(client.clone())),
         Box::new(resources::bgp_router_group::BgpRouterGroupResource::new(client.clone())),
         Box::new(resources::routing_instance::RoutingInstanceResource::new(client.clone())),
+        Box::new(resources::pool::PoolResource::new(client.clone())),
+        Box::new(resources::ip_address::IpAddressResource::new(client.clone())),
     ];
     resources::resources::init_resources(resource_list).await?;
 
@@ -175,6 +179,8 @@ async fn main() -> anyhow::Result<()> {
         Box::new(BgpRouterGroupController::new(ctx.clone())),
         Box::new(JunosConfigurationController::new(ctx.clone())),
         Box::new(RoutingInstanceController::new(ctx.clone())),
+        Box::new(IpAddressController::new(ctx.clone())),
+        Box::new(PoolController::new(ctx.clone())),
     ];
     
     join_handlers.push(
