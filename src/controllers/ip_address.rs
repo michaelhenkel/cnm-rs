@@ -23,9 +23,11 @@ use kube::{
     runtime::{
         controller::{Action, Controller as runtime_controller},
         watcher::Config,
+        finalizer::{finalizer, Event},
     },
 };
 use std::collections::BTreeMap;
+use std::f32::consts::E;
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
@@ -46,6 +48,43 @@ impl IpAddressController{
     }
     async fn reconcile(g: Arc<IpAddress>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
         info!("reconciling IpAddress {:?}", g.meta().name.as_ref().unwrap().clone());
+        let name = g.meta().name.as_ref().unwrap().clone();
+        let namespace = g.meta().namespace.as_ref().unwrap().clone();
+        /*
+        let ip = match controllers::get::<IpAddress>(
+            g.meta().namespace.as_ref().unwrap().clone(),
+            g.meta().name.as_ref().unwrap().clone(),
+            ctx.client.clone())
+            .await{
+            Ok(res) => {
+                match res{
+                    Some((mut ip_address, ip_address_api)) => {
+                        Some((ip_address, ip_address_api))
+                    },
+                    None => {
+                        return Ok
+                    }
+                }
+            }
+            Err(e) => {
+                return Err(e)
+            }
+        };
+        async move {
+            finalizer(
+                ,
+                "configmap-secret-syncer.nullable.se/cleanup",
+                cm,
+                |event| async {
+                    match event {
+                        Event::Apply(cm) => apply(cm, &secrets).await,
+                        Event::Cleanup(cm) => cleanup(cm, &secrets).await,
+                    }
+                },
+            )
+            .await
+        };
+        */
         let name = g.meta().name.as_ref().unwrap().clone();
         let namespace = g.meta().namespace.as_ref().unwrap().clone();
         let ip = match controllers::get::<IpAddress>(
@@ -142,13 +181,22 @@ impl IpAddressController{
                     Ok(res) => {
                         match res{
                             Some((mut pool, _api)) => {
-                                let ip = ip_address.status.as_ref().unwrap().address.clone();
-                                let ip = std::net::Ipv4Addr::from_str(&ip).unwrap();
-                                let ip = pool_controller::as_u32_be(&ip.octets());
-                                pool.status.as_mut().unwrap().return_number(ip as u128);
-                                if let Err(e) = controllers::update_status(pool, ctx.client.clone()).await{
-                                    return Err(e)
-                                }
+                                let status = match ip_address.status.as_ref(){
+                                    Some(status) => status,
+                                    None => return Err(ReconcileError(anyhow::anyhow!("no ip address status available")))
+                                };
+                                if !status.address.is_empty(){
+                                    let address: Vec<&str> = status.address.split("/").collect();
+                                    let ip = match std::net::Ipv4Addr::from_str(&address[0].to_string()){
+                                        Ok(ip) => ip,
+                                        Err(e) => return Err(ReconcileError(anyhow::anyhow!("wrong ip address format")))
+                                    };
+                                    let ip = pool_controller::as_u32_be(&ip.octets());
+                                    pool.status.as_mut().unwrap().return_number(ip as u128);
+                                    if let Err(e) = controllers::update_status(pool, ctx.client.clone()).await{
+                                        return Err(e)
+                                    }                                
+                                } 
                             },
                             None => {}
                         }
