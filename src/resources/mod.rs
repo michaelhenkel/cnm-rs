@@ -6,3 +6,5 @@ pub mod bgp_router_group;
 pub mod crpd;
 pub mod pool;
 pub mod ip_address;
+pub mod interface;
+pub mod vrrp;

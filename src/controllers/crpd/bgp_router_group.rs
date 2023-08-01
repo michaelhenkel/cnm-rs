@@ -47,8 +47,8 @@ impl BgpRouterGroupController{
     async fn reconcile(g: Arc<BgpRouterGroup>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
         info!("reconciling BgpRouterGroup {:?}", g.meta().name.as_ref().unwrap().clone());
         match controllers::get::<BgpRouterGroup>(
-            g.meta().namespace.as_ref().unwrap().clone(),
-            g.meta().name.as_ref().unwrap().clone(),
+            g.meta().namespace.as_ref().unwrap(),
+            g.meta().name.as_ref().unwrap(),
             ctx.client.clone())
             .await{
             Ok(res) => {
@@ -83,8 +83,8 @@ impl BgpRouterGroupController{
 pub async fn handle_bgp_router(bgp_router_group: &mut BgpRouterGroup, ctx: Arc<Context>) -> Result<Action, ReconcileError>{
     if let Some(routing_instance_ref) = &bgp_router_group.spec.bgp_router_template.routing_instance_parent{
         let routing_instance = match controllers::get::<RoutingInstance>(
-            bgp_router_group.meta().namespace.as_ref().unwrap().clone(),
-            routing_instance_ref.name.as_ref().unwrap().clone(), 
+            bgp_router_group.meta().namespace.as_ref().unwrap(),
+            routing_instance_ref.name.as_ref().unwrap(), 
             ctx.client.clone()).await{
                 Ok(res) => {
                     match res{
@@ -99,8 +99,8 @@ pub async fn handle_bgp_router(bgp_router_group: &mut BgpRouterGroup, ctx: Arc<C
     }
     
     let crpd = match controllers::get::<Crpd>(
-        bgp_router_group.meta().namespace.as_ref().unwrap().clone(),
-        bgp_router_group.spec.bgp_router_template.instance_parent.as_ref().unwrap().name.as_ref().unwrap().clone(), 
+        bgp_router_group.meta().namespace.as_ref().unwrap(),
+        bgp_router_group.spec.bgp_router_template.instance_parent.as_ref().unwrap().name.as_ref().unwrap(), 
         ctx.client.clone()).await{
             Ok(res) => {
                 match res{
@@ -119,17 +119,36 @@ pub async fn handle_bgp_router(bgp_router_group: &mut BgpRouterGroup, ctx: Arc<C
         if let Some(instances) = &status.instances{
             let mut bgp_router_list = Vec::new();
             let mut bgp_router_references = Vec::new();
-            for instance in instances{
+            for (instance_name, instance) in instances{
                 let mut bgp_router_spec = bgp_router_group.spec.bgp_router_template.clone();
-                bgp_router_spec.address = Some(instance.address.clone());
-                bgp_router_spec.router_id = Some(instance.address.clone());
+                if bgp_router_spec.v4_address.is_none(){
+                    if let Some(interface) = &bgp_router_spec.interface{
+                        if let Some(interface_config) = instance.interfaces.get(interface){
+                            bgp_router_spec.v4_address = interface_config.v4_address.clone();
+                        }
+                    }
+                }
+                if bgp_router_spec.v6_address.is_none(){
+                    if let Some(interface) = &bgp_router_spec.interface{
+                        if let Some(interface_config) = instance.interfaces.get(interface){
+                            bgp_router_spec.v6_address = interface_config.v6_address.clone();
+                        }
+                    }
+                }
+                if bgp_router_spec.router_id.is_none(){
+                    if let Some(interface) = &bgp_router_spec.interface{
+                        if let Some(interface_config) = instance.interfaces.get(interface){
+                            bgp_router_spec.router_id = interface_config.v4_address.clone();
+                        }
+                    }
+                }
                 let mut bgp_router_labels = bgp_router_group.meta().labels.clone();
                 bgp_router_labels.as_mut().unwrap().insert("cnm.juniper.net/bgpRouterGroup".to_string(), bgp_router_group.meta().name.as_ref().unwrap().clone());
                 if bgp_router_spec.managed{
                     bgp_router_labels.as_mut().unwrap().insert("cnm.juniper.net/bgpRouterManaged".to_string(), "true".to_string());
                 }
-                let name_namespace = format!("{}{}", instance.name, crpd.meta().namespace.as_ref().unwrap().clone().to_string());
-                let bgp_router_name = format!("{}-{}-{}", instance.name.clone(), bgp_router_group.meta().name.as_ref().unwrap().clone(), generate_hash(&name_namespace));
+                let name_namespace = format!("{}{}", instance_name.clone(), crpd.meta().namespace.as_ref().unwrap().clone().to_string());
+                let bgp_router_name = format!("{}-{}-{}", instance_name.clone(), bgp_router_group.meta().name.as_ref().unwrap().clone(), generate_hash(&name_namespace));
                 let bgp_router = BgpRouter{
                     metadata: meta_v1::ObjectMeta {
                         name: Some(bgp_router_name),
@@ -139,7 +158,7 @@ pub async fn handle_bgp_router(bgp_router_group: &mut BgpRouterGroup, ctx: Arc<C
                             meta_v1::OwnerReference{
                                 api_version: "v1".to_string(),
                                 kind: "Pod".to_string(),
-                                name: instance.name.clone(),
+                                name: instance_name.clone(),
                                 uid:  instance.uuid.clone(),
                                 ..Default::default()
                             },
@@ -160,7 +179,8 @@ pub async fn handle_bgp_router(bgp_router_group: &mut BgpRouterGroup, ctx: Arc<C
                                     uid: Some(bgp_router.meta().uid.as_ref().unwrap().clone()),
                                     ..Default::default()
                                 },
-                                local_address: bgp_router.spec.address.clone().unwrap(),
+                                local_v4_address: bgp_router.spec.v4_address.clone(),
+                                local_v6_address: bgp_router.spec.v6_address.clone(),
                             };
                             bgp_router_references.push(bgp_router_reference);
                             bgp_router_list.push(bgp_router);

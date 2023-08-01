@@ -64,7 +64,13 @@ pub struct BgpRouterSpec {
     pub router_id: Option<String>,
     #[garde(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub address: Option<String>,
+    pub v4_address: Option<String>,
+    #[garde(skip)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v6_address: Option<String>,
+    #[garde(skip)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interface: Option<String>,
     #[garde(skip)]
     pub address_families: Vec<AddressFamily>,
     #[garde(skip)]
@@ -107,8 +113,10 @@ pub struct BgpPeeringReference{
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BgpSessionAttributes{
-    pub local_address: String,
-    pub peer_address: String,
+    pub local_v4_address: Option<String>,
+    pub peer_v4_address: Option<String>,
+    pub local_v6_address: Option<String>,
+    pub peer_v6_address: Option<String>,
     pub local_as: i32,
     pub peer_as: i32,
     pub address_families: Vec<AddressFamily>,

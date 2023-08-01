@@ -32,23 +32,32 @@ pub struct CrpdSpec {
     #[garde(skip)]
     pub init_image: String,
     #[garde(skip)]
-    pub lookpback_pool: String,
+    pub setup_interfaces: bool,
+
 }
 
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CrpdStatus {
     pub stateful_set: Option<apps_v1::StatefulSetStatus>,
-    pub instances: Option<Vec<Instance>>,
+    pub instances: Option<BTreeMap<String,Instance>>,
     pub bgp_router_group_references: Option<Vec<core_v1::ObjectReference>>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
+#[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Instance{
-    pub name: String,
-    pub address: String,
+    pub interfaces: BTreeMap<String,Interface>,
     pub uuid: String,
-    //pub loopback_address: String,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Interface{
+    pub v4_address: Option<String>,
+    pub v6_address: Option<String>,
+    pub mac: String
 }
 
 pub struct CrpdResource{

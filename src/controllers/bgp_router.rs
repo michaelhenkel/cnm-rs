@@ -32,8 +32,8 @@ impl BgpRouterController{
     async fn reconcile(g: Arc<BgpRouter>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
         info!("reconciling BgpRouter {:?}", g.meta().name.as_ref().unwrap().clone());
         match controllers::get::<BgpRouter>(
-            g.meta().namespace.as_ref().unwrap().clone(),
-            g.meta().name.as_ref().unwrap().clone(),
+            g.meta().namespace.as_ref().unwrap(),
+            g.meta().name.as_ref().unwrap(),
             ctx.client.clone())
             .await{
             Ok(res) => {
@@ -41,7 +41,7 @@ impl BgpRouterController{
                     Some((mut bgp_router, _bgp_router_api)) => {
                         if let Some(labels) = &bgp_router.meta().labels{
                             if let Some(bgp_router_group_name) = labels.get("cnm.juniper.net/bgpRouterGroup"){
-                                if let Ok(res) = controllers::get::<BgpRouterGroup>(bgp_router.meta().namespace.as_ref().unwrap().clone(), bgp_router_group_name.to_string(), ctx.client.clone()).await{
+                                if let Ok(res) = controllers::get::<BgpRouterGroup>(bgp_router.meta().namespace.as_ref().unwrap(), bgp_router_group_name, ctx.client.clone()).await{
                                     if let Some((bgp_router_group, _)) = res{
                                         if let Some(bgp_router_group_status) = bgp_router_group.status{
                                             let mut bgp_peering_references = Vec::new();
@@ -51,8 +51,10 @@ impl BgpRouterController{
                                                         peer_reference: bgp_router_reference.bgp_router_reference.clone(),
                                                         bgp_router_group: Some(bgp_router_group_name.to_string()),
                                                         session_attributes: BgpSessionAttributes{
-                                                            local_address: bgp_router.spec.address.as_ref().unwrap().clone(),
-                                                            peer_address: bgp_router_reference.local_address.clone(),
+                                                            local_v4_address: bgp_router.spec.v4_address.clone(),
+                                                            peer_v4_address: bgp_router_reference.local_v4_address.clone(),
+                                                            local_v6_address: bgp_router.spec.v6_address.clone(),
+                                                            peer_v6_address: bgp_router_reference.local_v6_address.clone(),
                                                             local_as: bgp_router.spec.autonomous_system_number,
                                                             peer_as: bgp_router.spec.autonomous_system_number,
                                                             address_families: bgp_router.spec.address_families.clone(),

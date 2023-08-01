@@ -37,8 +37,8 @@ impl CrpdController{
         CrpdController{context, resource}
     }
     async fn reconcile(g: Arc<Crpd>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
-        match controllers::get::<Crpd>(g.meta().namespace.as_ref().unwrap().clone(),
-            g.meta().name.as_ref().unwrap().clone(),
+        match controllers::get::<Crpd>(g.meta().namespace.as_ref().unwrap(),
+            g.meta().name.as_ref().unwrap(),
             ctx.client.clone())
             .await{
             Ok(res) => {
@@ -93,8 +93,8 @@ impl CrpdController{
                                 return Err(e);
                             },
                         }
-                        match controllers::get::<apps_v1::StatefulSet>(sts.meta().namespace.as_ref().unwrap().clone(),
-                            sts.meta().name.as_ref().unwrap().clone(),
+                        match controllers::get::<apps_v1::StatefulSet>(sts.meta().namespace.as_ref().unwrap(),
+                            sts.meta().name.as_ref().unwrap(),
                             ctx.client.clone())
                             .await{
                             Ok(res) => {
@@ -113,39 +113,7 @@ impl CrpdController{
                                                 status.unwrap()
                                             },
                                         };
-                                        crpd.status = Some(status.clone());
-                                        let labels = BTreeMap::from_iter(vec![
-                                            ("app".to_string(), "crpd".to_string()),
-                                            ("crpd".to_string(), crpd.metadata.name.as_ref().unwrap().clone()),
-                                        ]);
-                                        let mut instances = Vec::new();
-                                        match controllers::list::<core_v1::Pod>(
-                                            sts.meta().namespace.as_ref().unwrap().clone(),
-                                            ctx.client.clone(),
-                                            Some(labels))
-                                            .await{
-                                                Ok(pod_list) => {
-                                                    match pod_list {
-                                                        Some((pod_list, _)) => {
-                                                            for pod in pod_list.items{
-                                                                if pod.status.as_ref().unwrap().pod_ip.is_some(){
-                                                                    let instance = Instance{
-                                                                        name: pod.meta().name.as_ref().unwrap().clone(),
-                                                                        address: pod.status.as_ref().unwrap().pod_ip.as_ref().unwrap().clone(),
-                                                                        uuid: pod.meta().uid.as_ref().unwrap().clone(),
-                                                                    };
-                                                                    instances.push(instance);
-                                                                }
-                                                            }
-                                                        },
-                                                        None => {},
-                                                    }
-                                                },
-                                                Err(e) => {
-                                                    return Err(e);
-                                                },
-                                        }
-                                        crpd.status.as_mut().unwrap().instances = Some(instances);                                        
+                                        crpd.status = Some(status.clone());                                      
                                     },
                                     None => {},
                                 }
@@ -398,6 +366,22 @@ impl From<Crpd> for apps_v1::StatefulSet{
                                     "crpd-init".to_string(),
                                 ]),
                                 env: Some(vec![
+                                    core_v1::EnvVar{
+                                        name: "CRPD_GROUP".to_string(),
+                                        value: Some(crpd.metadata.name.as_ref().unwrap().clone()),
+                                        ..Default::default()
+                                    },
+                                    core_v1::EnvVar{
+                                        name: "POD_UUID".to_string(),
+                                        value_from: Some(core_v1::EnvVarSource{
+                                            field_ref: Some(core_v1::ObjectFieldSelector{
+                                                field_path: "metadata.uid".to_string(),
+                                                ..Default::default()
+                                            }),
+                                            ..Default::default()
+                                        }),
+                                        ..Default::default()
+                                    },
                                     core_v1::EnvVar{
                                         name: "POD_IP".to_string(),
                                         value_from: Some(core_v1::EnvVarSource{

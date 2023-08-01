@@ -85,11 +85,11 @@ impl IpAddressController{
             .await
         };
         */
-        let name = g.meta().name.as_ref().unwrap().clone();
-        let namespace = g.meta().namespace.as_ref().unwrap().clone();
+        let name = g.meta().name.as_ref().unwrap();
+        let namespace = g.meta().namespace.as_ref().unwrap();
         let ip = match controllers::get::<IpAddress>(
-            g.meta().namespace.as_ref().unwrap().clone(),
-            g.meta().name.as_ref().unwrap().clone(),
+            name,
+            namespace,
             ctx.client.clone())
             .await{
             Ok(res) => {
@@ -97,8 +97,8 @@ impl IpAddressController{
                     Some((mut ip_address, ip_address_api)) => {
                         if ip_address.status.is_none() || ip_address.status.as_ref().unwrap().address.is_empty(){
                             match controllers::get::<pool::Pool>(
-                                ip_address.meta().namespace.as_ref().unwrap().clone(),
-                                ip_address.spec.pool.name.as_ref().unwrap().clone(),
+                                &namespace,
+                                ip_address.spec.pool.name.as_ref().unwrap(),
                                 ctx.client.clone())
                                 .await{
                                 Ok(res) => {
@@ -174,8 +174,8 @@ impl IpAddressController{
             }
             ReconcileAction::Delete => {
                 match controllers::get::<pool::Pool>(
-                    ip_address.meta().namespace.as_ref().unwrap().clone(),
-                    ip_address.spec.pool.name.as_ref().unwrap().clone(),
+                    namespace,
+                    ip_address.spec.pool.name.as_ref().unwrap(),
                     ctx.client.clone())
                     .await{
                     Ok(res) => {

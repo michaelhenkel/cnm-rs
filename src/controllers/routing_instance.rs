@@ -38,8 +38,8 @@ impl RoutingInstanceController{
         info!("reconciling RoutingInstance {:?}", g.meta().name.as_ref().unwrap().clone());
         
         match controllers::get::<RoutingInstance>(
-            g.meta().namespace.as_ref().unwrap().clone(),
-            g.meta().name.as_ref().unwrap().clone(),
+            g.meta().namespace.as_ref().unwrap(),
+            g.meta().name.as_ref().unwrap(),
             ctx.client.clone())
             .await{
             Ok(res) => {

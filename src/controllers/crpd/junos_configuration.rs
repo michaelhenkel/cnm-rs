@@ -36,15 +36,15 @@ impl JunosConfigurationController{
     }
     async fn reconcile(g: Arc<BgpRouter>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
         match controllers::get::<BgpRouter>(
-            g.meta().namespace.as_ref().unwrap().clone(),
-            g.meta().name.as_ref().unwrap().clone(),
+            g.meta().namespace.as_ref().unwrap(),
+            g.meta().name.as_ref().unwrap(),
             ctx.client.clone())
             .await{
             Ok(res) => {
                 match res{
                     Some((bgp_router, _)) => {
                         info!("junos config controller reconciles bgprouter config");
-                        if let Some(address) = &bgp_router.spec.address{
+                        if let Some(address) = &bgp_router.spec.v4_address{
                             let mut pod_name = None;
                             bgp_router.meta().owner_references.as_ref().unwrap().iter().for_each(|owner: &meta_v1::OwnerReference| {
                                 info!("owner: {:#?}", owner);
@@ -100,8 +100,8 @@ impl Controller for JunosConfigurationController{
             JunosConfigurationController::error_policy(g, error, ctx)
         };
         
-        let (ca, kp) = match controllers::get::<core_v1::Secret>(self.context.namespace.as_ref().unwrap().clone(), 
-        "cnm-ca".to_string(), self.context.client.clone()).await{
+        let (ca, kp) = match controllers::get::<core_v1::Secret>(self.context.namespace.as_ref().unwrap(), 
+        "cnm-ca", self.context.client.clone()).await{
             Ok(ca_secret) => {
                 match ca_secret {
                     Some((secret, _)) => {

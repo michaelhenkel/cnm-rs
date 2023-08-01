@@ -118,14 +118,14 @@ pub fn already_exists(e: &Error) -> bool {
 
 //Result<Option<T>, ReconcileError>
 
-pub async fn get<T: kube::Resource>(namespace: String, name: String, client: Client) -> Result<Option<(T,Api<T>)>, ReconcileError>
+pub async fn get<T: kube::Resource>(namespace: &str, name: &str, client: Client) -> Result<Option<(T,Api<T>)>, ReconcileError>
 where
 T: kube::Resource<Scope = NamespaceResourceScope>,
 <T as kube::Resource>::DynamicType: Default,
 T: Clone + DeserializeOwned + Debug,
 {
-    let res_api: Api<T> = Api::namespaced(client.clone(), namespace.as_str());
-    let res = match res_api.get(name.as_str()).await{
+    let res_api: Api<T> = Api::namespaced(client.clone(), namespace);
+    let res = match res_api.get(name).await{
         Ok(res) => {
             info!("Found resource: {:?}", res.meta().name.as_ref().unwrap());
             Some((res, res_api))
@@ -340,7 +340,7 @@ T: kube::Resource<Scope = NamespaceResourceScope>,
 <T as kube::Resource>::DynamicType: Default,
 T: Clone + DeserializeOwned + Debug + Serialize,
 {
-    match get::<T>(t.meta().namespace.as_ref().unwrap().clone(), t.meta().name.as_ref().unwrap().clone(), client.clone()).await{
+    match get::<T>(t.meta().namespace.as_ref().unwrap(), t.meta().name.as_ref().unwrap(), client.clone()).await{
         Ok(res) => {
             match res{
                 Some((mut current, _)) => {                    

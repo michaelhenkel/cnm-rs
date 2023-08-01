@@ -8,6 +8,8 @@ use cnm_rs::controllers::{
     routing_instance::RoutingInstanceController,
     pool::PoolController,
     ip_address::IpAddressController,
+    crpd::interface::InterfaceController,
+    crpd::vrrp::VrrpController,
     controllers,
 };
 use cnm_rs::admission;
@@ -78,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
 
     let client = Client::try_default().await?;
 
-    let secret = match controllers::get::<core_v1::Secret>(namespace.clone(), "cnm-ca".to_string(), client.clone()).await{
+    let secret = match controllers::get::<core_v1::Secret>(&namespace, "cnm-ca", client.clone()).await{
         Ok(secret) => { secret },
         Err(e) => { return Err(e.into())},
     };
@@ -170,6 +172,8 @@ async fn main() -> anyhow::Result<()> {
         Box::new(resources::routing_instance::RoutingInstanceResource::new(client.clone())),
         Box::new(resources::pool::PoolResource::new(client.clone())),
         Box::new(resources::ip_address::IpAddressResource::new(client.clone())),
+        Box::new(resources::interface::InterfaceResource::new(client.clone())),
+        Box::new(resources::vrrp::VrrpResource::new(client.clone())),
     ];
     resources::resources::init_resources(resource_list).await?;
 
@@ -181,6 +185,8 @@ async fn main() -> anyhow::Result<()> {
         Box::new(RoutingInstanceController::new(ctx.clone())),
         Box::new(IpAddressController::new(ctx.clone())),
         Box::new(PoolController::new(ctx.clone())),
+        Box::new(InterfaceController::new(ctx.clone())),
+        Box::new(VrrpController::new(ctx.clone())),
     ];
     
     join_handlers.push(

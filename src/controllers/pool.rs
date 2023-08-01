@@ -42,8 +42,8 @@ impl PoolController{
         info!("reconciling Pool {:?}", g.meta().name.as_ref().unwrap().clone());
         
         match controllers::get::<Pool>(
-            g.meta().namespace.as_ref().unwrap().clone(),
-            g.meta().name.as_ref().unwrap().clone(),
+            g.meta().namespace.as_ref().unwrap(),
+            g.meta().name.as_ref().unwrap(),
             ctx.client.clone())
             .await{
             Ok(res) => {
