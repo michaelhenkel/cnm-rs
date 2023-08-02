@@ -69,6 +69,15 @@ pub enum InstanceType{
     Tgw,
 }
 
+impl Default for Parent{
+    fn default() -> Self{
+        Parent{
+            parent_type: InstanceType::Crpd,
+            reference: core_v1::LocalObjectReference::default(),
+        }
+    }
+}
+
 impl Default for InstanceType{
     fn default() -> Self{
         InstanceType::Generic

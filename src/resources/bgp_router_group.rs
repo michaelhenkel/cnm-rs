@@ -14,7 +14,7 @@ use kube::{
 use async_trait::async_trait;
 
 use crate::resources::resources::Resource;
-use crate::resources::bgp_router::{BgpRouterSpec, BgpRouterType};
+use crate::resources::bgp_router::BgpRouterSpec;
 use k8s_openapi::api::core::v1 as core_v1;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
 

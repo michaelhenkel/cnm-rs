@@ -201,7 +201,7 @@ impl Controller for JunosConfigurationController{
         let mut config = Config::default();
         config.label_selector = Some("
             cnm.juniper.net/bgpRouterManaged=true,
-            cnm.juniper.net/bgpRouterType=Crpd
+            cnm.juniper.net/instanceType=Crpd
         ".to_string());
         runtime_controller::new(self.resource.clone(), config)
             .run(reconcile, error_policy, Arc::new(new_context))

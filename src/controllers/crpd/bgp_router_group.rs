@@ -7,10 +7,7 @@ use crate::resources::bgp_router_group::{
     BgpRouterReference,
 };
 use crate::resources::routing_instance::RoutingInstance;
-use crate::resources::bgp_router::{
-    BgpRouter,
-    BgpRouterParent,
-};
+use crate::resources::bgp_router::BgpRouter;
 use crate::resources::crpd::crpd::Crpd;
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -100,7 +97,7 @@ pub async fn handle_bgp_router(bgp_router_group: &mut BgpRouterGroup, ctx: Arc<C
     
     let crpd = match controllers::get::<Crpd>(
         bgp_router_group.meta().namespace.as_ref().unwrap(),
-        bgp_router_group.spec.bgp_router_template.instance_parent.as_ref().unwrap().name.as_ref().unwrap(), 
+        bgp_router_group.spec.bgp_router_template.instance_parent.as_ref().unwrap().reference.name.as_ref().unwrap(), 
         ctx.client.clone()).await{
             Ok(res) => {
                 match res{
@@ -221,7 +218,7 @@ impl Controller for BgpRouterGroupController{
             BgpRouterGroupController::error_policy(g, error, ctx)
         };
         let mut config = Config::default();
-        config.label_selector = Some("cnm.juniper.net/bgpRouterType=Crpd".to_string());
+        config.label_selector = Some("cnm.juniper.net/instanceType=Crpd".to_string());
         runtime_controller::new(self.resource.clone(), config.clone())
             .watches(
                 Api::<Crpd>::all(self.context.client.clone()),

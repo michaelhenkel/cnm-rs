@@ -7,8 +7,8 @@ spec:
   bgpRouterTemplate:
     instanceParent:
       name: crpd1
+      parentType: Crpd
     managed: true
-    routerType: Crpd
     autonomousSystemNumber: 1
     addressFamilies:
     - Inet

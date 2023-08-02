@@ -1,5 +1,4 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError, self};
-use crate::resources::bgp_router::BgpRouterType;
 use crate::resources::crpd::crpd::{Crpd, CrpdStatus, Instance};
 use crate::resources::bgp_router_group::BgpRouterGroup;
 use crate::resources::interface_group::InterfaceGroup;
@@ -273,36 +272,40 @@ impl Controller for CrpdController{
                 Api::<BgpRouterGroup>::all(self.context.client.clone()),
                 Config::default(),
                 |bgp_router_group| {
-                    match bgp_router_group.spec.bgp_router_template.router_type{
-                        BgpRouterType::Crpd => { 
-                            match &bgp_router_group.meta().labels{
-                                Some(labels) => {
-                                    match labels.get("cnm.juniper.net/instanceSelector"){
-                                        Some(selector_name) => {
-                                            Some(ObjectRef::<Crpd>::new(
-                                                selector_name)
-                                                .within(bgp_router_group.meta().namespace.as_ref().unwrap()))
-                                        },
-                                        None => {
-                                            None
-                                        },
-                                    }
-                                },
-                                None => {
-                                    None
-                                },
-                            }
-                        },
-                        _ => None,
+                    if let Some(instance_parent) = &bgp_router_group.spec.bgp_router_template.instance_parent{
+                        match instance_parent.parent_type{
+                            resources::InstanceType::Crpd => { 
+                                match &bgp_router_group.meta().labels{
+                                    Some(labels) => {
+                                        match labels.get("cnm.juniper.net/instanceSelector"){
+                                            Some(selector_name) => {
+                                                Some(ObjectRef::<Crpd>::new(
+                                                    selector_name)
+                                                    .within(bgp_router_group.meta().namespace.as_ref().unwrap()))
+                                            },
+                                            None => {
+                                                None
+                                            },
+                                        }
+                                    },
+                                    None => {
+                                        None
+                                    },
+                                }
+                            },
+                            _ => None,
+                        }
+                    } else {
+                        None
                     }
-
                 }
             )
             .watches(
                 Api::<InterfaceGroup>::all(self.context.client.clone()),
                 Config::default(),
                 |interface_group| {
-                    match interface_group.spec.interface_template.instance_type{
+
+                    match interface_group.spec.interface_template.instance_parent.parent_type{
                         resources::InstanceType::Crpd => {
                             match &interface_group.meta().labels{
                                 Some(labels) => {

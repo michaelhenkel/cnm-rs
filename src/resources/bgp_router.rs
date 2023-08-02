@@ -17,6 +17,8 @@ use std::fmt::{Display, Result, Formatter};
 
 use crate::resources::resources::Resource;
 
+use super::resources;
+
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 pub enum AddressFamily{
     Inet,
@@ -26,25 +28,6 @@ pub enum AddressFamily{
     RouteTarget,
     Inet6,
     Inet6Vpn,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
-pub enum BgpRouterType{
-    Crpd,
-    Generic,
-    MetalLb,
-    Tgw,
-}
-
-impl Display for BgpRouterType {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        match self {
-            BgpRouterType::Crpd => write!(f, "Crpd"),
-            BgpRouterType::Generic => write!(f, "Generic"),
-            BgpRouterType::MetalLb => write!(f, "MetalLb"),
-            BgpRouterType::Tgw => write!(f, "Tgw"),
-        }
-    }
 }
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
@@ -74,32 +57,16 @@ pub struct BgpRouterSpec {
     #[garde(skip)]
     pub address_families: Vec<AddressFamily>,
     #[garde(skip)]
-    pub router_type: BgpRouterType,
-    #[garde(skip)]
     pub managed: bool,
     #[garde(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bgp_peer_references: Option<Vec<BgpPeeringReference>>,
     #[garde(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub instance_parent: Option<core_v1::ObjectReference>,
+    pub instance_parent: Option<resources::Parent>,
     #[garde(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub routing_instance_parent: Option<core_v1::ObjectReference>,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub enum BgpRouterParent{
-
-    Selector(meta_v1::LabelSelector),
-    RoutingInstance(core_v1::ObjectReference),
-}
-
-impl Default for BgpRouterParent{
-    fn default() -> Self{
-        BgpRouterParent::Selector(meta_v1::LabelSelector::default())
-    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]

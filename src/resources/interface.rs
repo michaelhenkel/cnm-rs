@@ -28,8 +28,6 @@ use super::resources;
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
 pub struct InterfaceSpec {
     #[garde(skip)]
-    pub parent: core_v1::LocalObjectReference,
-    #[garde(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[garde(skip)]
@@ -42,7 +40,7 @@ pub struct InterfaceSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mac: Option<String>,
     #[garde(skip)]
-    pub instance_type: resources::InstanceType,
+    pub instance_parent: resources::Parent,
 
 }
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]

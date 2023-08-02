@@ -59,7 +59,7 @@ impl InterfaceGroupController{
 
         let crpd = match controllers::get::<Crpd>(
             namespace,
-            interface_group.spec.interface_template.parent.name.as_ref().unwrap(), 
+            interface_group.spec.interface_template.instance_parent.reference.name.as_ref().unwrap(), 
             ctx.client.clone()).await{
                 Ok(res) => {
                     match res{
@@ -95,7 +95,7 @@ impl InterfaceGroupController{
                             let interface_name = format!("{}-{}", instance_name, inst_intf_name.clone());
                             let mut interface_spec = interface_group.spec.interface_template.clone();
                             interface_spec.name = Some(inst_intf_name);
-                            interface_spec.parent.name = Some(instance_name.clone());
+                            interface_spec.instance_parent.reference.name = Some(instance_name.clone());
                             interface_spec.mtu = Some(8900);
                             interface_spec.mac = Some(inst_intf.mac.clone());
                             let mut family_list = Vec::new();
