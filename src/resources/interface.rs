@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::*;
+use std::str::FromStr;
 
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
@@ -18,6 +19,8 @@ use crate::controllers::crpd::junos::routing_instance::Instance;
 use crate::resources::resources::Resource;
 use k8s_openapi::api::core::v1 as core_v1;
 
+use super::resources;
+
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema, Default)]
 #[kube(group = "cnm.juniper.net", version = "v1", kind = "Interface", namespaced)]
 #[kube(status = "InterfaceStatus")]
@@ -27,11 +30,19 @@ pub struct InterfaceSpec {
     #[garde(skip)]
     pub parent: core_v1::LocalObjectReference,
     #[garde(skip)]
-    pub mtu: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     #[garde(skip)]
-    pub families: Vec<InterfaceFamily>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mtu: Option<u16>,
     #[garde(skip)]
-    pub mac: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub families: Option<Vec<InterfaceFamily>>,
+    #[garde(skip)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mac: Option<String>,
+    #[garde(skip)]
+    pub instance_type: resources::InstanceType,
 
 }
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
@@ -39,6 +50,24 @@ pub struct InterfaceSpec {
 pub enum InterfaceFamily{
     Inet(InterfaceInet),
     Inet6(InterfaceInet6),
+}
+
+impl InterfaceFamily{
+    pub fn new(address: &str) -> InterfaceFamily{
+        let prefix = address.split("/").collect::<Vec<&str>>();
+        let ip_addr = std::net::IpAddr::from_str(prefix[0]).unwrap();
+        if ip_addr.is_ipv4(){
+            let ipv4 = std::net::Ipv4Addr::from_str(prefix[0]).unwrap();
+            InterfaceFamily::Inet(InterfaceInet{
+                address: format!("{}/{}",ipv4.to_string(), prefix[1]),
+            })
+        } else {
+            let ipv6 = std::net::Ipv6Addr::from_str(prefix[0]).unwrap();
+            InterfaceFamily::Inet6(InterfaceInet6{
+                address: format!("{}/{}",ipv6.to_string(), prefix[1]),
+            })
+        }
+    }
 }
 
 impl Default for InterfaceFamily{

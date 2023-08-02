@@ -2,6 +2,8 @@ use crate::controllers::controllers::{Controller, Context, ReconcileError, self}
 use crate::resources::bgp_router::BgpRouterType;
 use crate::resources::crpd::crpd::{Crpd, CrpdStatus, Instance};
 use crate::resources::bgp_router_group::BgpRouterGroup;
+use crate::resources::interface_group::InterfaceGroup;
+use crate::resources::resources;
 use async_trait::async_trait;
 use futures::StreamExt;
 use kube::Resource;
@@ -72,6 +74,46 @@ impl CrpdController{
                                                 None => {
                                                     let status = Some(CrpdStatus{
                                                         bgp_router_group_references: Some(bgp_router_group_ref_list),
+                                                        ..Default::default()
+                                                    });
+                                                    status.unwrap()
+                                                },
+                                            };
+                                            crpd.status = Some(status.clone());
+                                        },
+                                        None => {}
+                                    };
+                                },
+                                Err(e) => return Err(e),
+                        };
+                        match controllers::list::<InterfaceGroup>(
+                            crpd.meta().namespace.as_ref().unwrap().clone(),
+                            ctx.client.clone(),
+                            Some(BTreeMap::from([("cnm.juniper.net/instanceSelector".to_string(), crpd.meta().name.as_ref().unwrap().clone())]))).await{
+                                Ok(res) => {
+                                    match res{
+                                        Some((interface_group_list, _)) => {
+                                            let mut interface_group_ref_list = Vec::new();
+                                            for interface_group in &interface_group_list{
+                                                let interface_group_ref = core_v1::ObjectReference{
+                                                    api_version: Some("cnm.juniper.net/v1".to_string()),
+                                                    kind: Some("InterfaceGroup".to_string()),
+                                                    name: Some(interface_group.meta().name.as_ref().unwrap().clone()),
+                                                    namespace: Some(interface_group.meta().namespace.as_ref().unwrap().clone()),
+                                                    uid: Some(interface_group.meta().uid.as_ref().unwrap().clone()),
+                                                    ..Default::default()
+                                                };
+                                                interface_group_ref_list.push(interface_group_ref);
+                                            }
+                                            
+                                            let status = match crpd.clone().status{
+                                                Some(mut status) => {
+                                                    status.interface_group_references = Some(interface_group_ref_list);
+                                                    status
+                                                },
+                                                None => {
+                                                    let status = Some(CrpdStatus{
+                                                        interface_group_references: Some(interface_group_ref_list),
                                                         ..Default::default()
                                                     });
                                                     status.unwrap()
@@ -254,6 +296,30 @@ impl Controller for CrpdController{
                         _ => None,
                     }
 
+                }
+            )
+            .watches(
+                Api::<InterfaceGroup>::all(self.context.client.clone()),
+                Config::default(),
+                |interface_group| {
+                    match interface_group.spec.interface_template.instance_type{
+                        resources::InstanceType::Crpd => {
+                            match &interface_group.meta().labels{
+                                Some(labels) => {
+                                    match labels.get("cnm.juniper.net/instanceSelector"){
+                                        Some(selector_name) => {
+                                            Some(ObjectRef::<Crpd>::new(
+                                                selector_name)
+                                                .within(interface_group.meta().namespace.as_ref().unwrap()))
+                                        },
+                                        None => None,
+                                    }
+                                },
+                                None => None
+                            }
+                        },
+                        _ => None,
+                    } 
                 }
             )
             .run(reconcile, error_policy, self.context.clone())

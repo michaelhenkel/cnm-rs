@@ -4,3 +4,4 @@ pub mod bgp_router;
 pub mod crpd;
 pub mod pool;
 pub mod ip_address;
+pub mod interface;

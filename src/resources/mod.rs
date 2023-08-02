@@ -7,4 +7,5 @@ pub mod crpd;
 pub mod pool;
 pub mod ip_address;
 pub mod interface;
+pub mod interface_group;
 pub mod vrrp;

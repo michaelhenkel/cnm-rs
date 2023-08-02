@@ -2,6 +2,8 @@ use crate::resources::routing_instance::RoutingInstance;
 use crate::resources::{
     bgp_router,
     bgp_router_group,
+    interface_group,
+    interface,
     ip_address
 };
 use crate::controllers::controllers;
@@ -96,7 +98,12 @@ impl AdmissionController{
                 operations: Some(vec!["CREATE".to_string(), "UPDATE".to_string(), "DELETE".to_string()]),
                 api_groups: Some(vec!["cnm.juniper.net".to_string()]),
                 api_versions: Some(vec!["v1".to_string()]),
-                resources: Some(vec!["bgprouters".to_string(), "bgproutergroups".to_string()]),
+                resources: Some(vec![
+                    "bgprouters".to_string(),
+                    "bgproutergroups".to_string(),
+                    "interfacegroups".to_string(),
+                    "interfaces".to_string(),
+                ]),
                 scope: Some("Namespaced".to_string()),
                 ..Default::default()
             }]),
@@ -153,6 +160,21 @@ fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionRespon
                         },
                         None => {}
                     }
+                }
+            },
+            "Interface" => {
+                info!("Interface: {}", obj.data);
+                if let Some(spec) = obj.data.get("spec"){
+                    let interface_spec = serde_json::from_value::<interface::InterfaceSpec>(spec.clone())?;
+                    labels.insert("cnm.juniper.net~1instanceType", interface_spec.instance_type.to_string());
+                }
+            },
+            "InterfaceGroup" => {
+                info!("InterfaceGroup: {}", obj.data);
+                if let Some(spec) = obj.data.get("spec"){
+                    let interface_group_spec = serde_json::from_value::<interface_group::InterfaceGroupSpec>(spec.clone())?;
+                    labels.insert("cnm.juniper.net~1instanceType", interface_group_spec.interface_template.instance_type.to_string());
+                    labels.insert("cnm.juniper.net~1instanceSelector", interface_group_spec.interface_template.parent.name.as_ref().unwrap().clone());
                 }
             },
             _ => {

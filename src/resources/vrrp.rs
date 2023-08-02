@@ -25,70 +25,63 @@ use k8s_openapi::api::core::v1 as core_v1;
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
 pub struct VrrpSpec {
     #[garde(skip)]
-    pub priority: u8,
+    pub interface_selector: InterfaceSelector,
     #[garde(skip)]
-    pub fast_interval: u8,
+    pub group: u8,
     #[garde(skip)]
-    pub track: VrrpTrack,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priority: Option<u8>,
     #[garde(skip)]
-    pub virtual_address: VrrpVirtualAddress,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fast_interval: Option<u8>,
     #[garde(skip)]
-    pub unicast: VrrpUnicast,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track: Option<Track>,
     #[garde(skip)]
-    pub peering_interfaces: PeeringInterfaces
+    pub virtual_address: VirtualAddress,
+    #[garde(skip)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unicast: Option<VrrpUnicast>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct PeeringInterfaces{
-    pub interface_1: core_v1::LocalObjectReference,
-    pub interface_2: core_v1::LocalObjectReference,
+pub enum InterfaceSelector{
+    Selector(meta_v1::LabelSelector),
+    Parent(core_v1::LocalObjectReference),
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct VrrpTrack{
-    pub interface: VrrpTrackVrrp,
-    pub notify_master: VrrpTrackNotifyMaster,
-    pub notify_backup: VrrpTrackNotifyBackup,
+pub struct Track{
+    pub interface: Vec<TrackInterface>,
+    pub notify_master: String,
+    pub notify_backup: String,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct VrrpTrackVrrp{
-    pub weight: VrrpTrackVrrpWeight,
+pub struct TrackInterface{
+    pub interface: String,
+    pub weight_cost: u8,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct VrrpTrackVrrpWeight{
-    pub cost: u8,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct VrrpTrackNotifyMaster{
-    pub script_name: String,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct VrrpTrackNotifyBackup{
-    pub script_name: String,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct VrrpVirtualAddress{
-    pub device_name: String,
+pub struct VirtualAddress{
+    pub address: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_name: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VrrpUnicast{
-    pub local_address: String,
-    pub peer_address: String,
+    pub local_address: Vec<String>,
+    pub peer_address: Vec<String>,
 }
+
+
 /*
             eth2 {
                 mtu 9001;

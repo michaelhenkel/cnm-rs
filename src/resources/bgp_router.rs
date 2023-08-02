@@ -107,15 +107,20 @@ impl Default for BgpRouterParent{
 pub struct BgpPeeringReference{
     pub peer_reference: core_v1::ObjectReference,
     pub session_attributes: BgpSessionAttributes,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bgp_router_group: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BgpSessionAttributes{
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub local_v4_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub peer_v4_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub local_v6_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub peer_v6_address: Option<String>,
     pub local_as: i32,
     pub peer_as: i32,

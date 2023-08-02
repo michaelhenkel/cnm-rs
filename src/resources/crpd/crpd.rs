@@ -43,6 +43,7 @@ pub struct CrpdStatus {
     pub stateful_set: Option<apps_v1::StatefulSetStatus>,
     pub instances: Option<BTreeMap<String,Instance>>,
     pub bgp_router_group_references: Option<Vec<core_v1::ObjectReference>>,
+    pub interface_group_references: Option<Vec<core_v1::ObjectReference>>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema, PartialEq)]
@@ -55,7 +56,9 @@ pub struct Instance{
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Interface{
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub v4_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub v6_address: Option<String>,
     pub mac: String
 }

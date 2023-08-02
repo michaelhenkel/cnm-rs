@@ -219,49 +219,6 @@ pub async fn main() -> anyhow::Result<()> {
         return Err(e.into());
     }
 
-    if crpd.spec.setup_interfaces{
-        for (intf_name, intf) in &instance.interfaces{
-            let interface = interface::Interface{
-                metadata: meta_v1::ObjectMeta {
-                    name: Some(format!("{}-{}", pod_name.clone(), intf_name)),
-                    namespace: Some(pod_namespace.clone()),
-                    labels: Some(
-                        BTreeMap::from([("cnm.juniper.net/crpdGroup".to_string(),crpd_group.clone())])
-                    ),
-                    ..Default::default()
-                },
-                spec: interface::InterfaceSpec {
-                    parent: core_v1::LocalObjectReference { name: Some(pod_name.clone()) },
-                    mac: intf.mac.clone(),
-                    mtu: 8900,
-                    families: {
-                        let mut family_list = Vec::new();
-                        if let Some(v4_ip) = &intf.v4_address{
-                            let interface_inet = interface::InterfaceInet{
-                                address: v4_ip.clone()
-                            };
-                            let fam = interface::InterfaceFamily::Inet(interface_inet);
-                            family_list.push(fam);
-                        }
-                        if let Some(v6_ip) = &intf.v6_address{
-                            let interface_inet6 = interface::InterfaceInet6{
-                                address: v6_ip.clone()
-                            };
-                            let fam = interface::InterfaceFamily::Inet6(interface_inet6);
-                            family_list.push(fam);
-                        }
-                        family_list
-                    }
-                    
-                },
-                status: None
-            };
-            if let Err(e) = controllers::create(Arc::new(interface), client.clone()).await{
-                return Err(e.into());
-            }
-        }
-    }
-
     // read linux interface configuration from the operating system
 
 

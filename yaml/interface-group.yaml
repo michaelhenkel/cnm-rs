@@ -1,0 +1,11 @@
+apiVersion: cnm.juniper.net/v1
+kind: InterfaceGroup
+metadata:
+  name: ifg1
+spec:
+  interfaceSelector:
+    all: true
+  interfaceTemplate:
+    instanceType: Crpd
+    parent:
+      name: crpd1

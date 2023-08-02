@@ -43,7 +43,9 @@ pub struct BgpRouterGroupStatus {
 #[serde(rename_all = "camelCase")]
 pub struct BgpRouterReference{
     pub bgp_router_reference: core_v1::ObjectReference,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub local_v4_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub local_v6_address: Option<String>,
 }
 

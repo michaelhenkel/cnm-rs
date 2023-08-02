@@ -1,3 +1,4 @@
+
 use garde::Validate;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,46 +7,64 @@ use tokio::time::sleep;
 use tracing::*;
 
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
 use kube::{
     api::{Api, PostParams, ResourceExt},
     core::crd::CustomResourceExt,
     Client, CustomResource,
 };
 use async_trait::async_trait;
-use crate::controllers::crpd::junos::routing_instance::Instance;
 
 use crate::resources::resources::Resource;
+use crate::resources::interface::InterfaceSpec;
 use k8s_openapi::api::core::v1 as core_v1;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
-#[kube(group = "cnm.juniper.net", version = "v1", kind = "RoutingInstance", namespaced)]
-#[kube(status = "RoutingInstanceStatus")]
+#[kube(group = "cnm.juniper.net", version = "v1", kind = "InterfaceGroup", namespaced)]
+#[kube(status = "InterfaceGroupStatus")]
+#[serde(rename_all = "camelCase")]
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
-pub struct RoutingInstanceSpec {
+pub struct InterfaceGroupSpec {
+    #[schemars(length(min = 1))]
     #[garde(skip)]
-    pub parent: core_v1::ObjectReference,
+    pub interface_selector: InterfaceSelector,
+    #[garde(skip)]
+    pub interface_template: InterfaceSpec,
 }
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum InterfaceSelector{
+    All(bool),
+    List(Vec<String>)
+}
+
+impl Default for InterfaceSelector{
+    fn default() -> Self{
+        InterfaceSelector::All(true)
+    }
+}
+
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
-pub struct RoutingInstanceStatus {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bgp_router_group_references: Option<Vec<core_v1::ObjectReference>>,
+#[serde(rename_all = "camelCase")]
+pub struct InterfaceGroupStatus {
+    pub interface_references: Vec<core_v1::LocalObjectReference>,
 }
 
-pub struct RoutingInstanceResource{
+pub struct InterfaceGroupResource{
     client: Client,
     name: String,
     group: String,
     version: String,
 }
 
-impl RoutingInstanceResource{
+impl InterfaceGroupResource{
     pub fn new(client: Client) -> Self{
-        let name = "routinginstances".to_string();
+        let name = "interfacegroups".to_string();
         let group = "cnm.juniper.net".to_string();
         let version = "v1".to_string();
-        RoutingInstanceResource{
+        InterfaceGroupResource{
             client,
             name,
             group,
@@ -55,7 +74,7 @@ impl RoutingInstanceResource{
 }
 
 #[async_trait]
-impl Resource for RoutingInstanceResource{
+impl Resource for InterfaceGroupResource{
     fn client(&self) -> Client{
         self.client.clone()
     }
@@ -70,7 +89,7 @@ impl Resource for RoutingInstanceResource{
     }
     async fn create(&self) -> anyhow::Result<()>{
         let crds: Api<CustomResourceDefinition> = Api::all(self.client.clone());
-        let crd = RoutingInstance::crd();
+        let crd = InterfaceGroup::crd();
         info!("Creating CRD: {}",self.name);
         let pp = PostParams::default();
         match crds.create(&pp, &crd).await {

@@ -1,6 +1,8 @@
-use std::time::Duration;
+use std::{time::Duration, fmt::{Display, Result, Formatter}};
 use tokio::time::sleep;
 use tracing::*;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
 use kube::{
@@ -8,6 +10,7 @@ use kube::{
     Client,
 };
 use async_trait::async_trait;
+use k8s_openapi::api::core::v1 as core_v1;
 
 #[async_trait]
 pub trait Resource: Send + Sync{
@@ -49,4 +52,36 @@ pub async fn init_resources(resource_list: Vec<Box<dyn Resource>>) -> anyhow::Re
         resource.create().await?;
     }
     Ok(())
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Parent{
+    pub parent_type: InstanceType,
+    pub reference: core_v1::LocalObjectReference,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+pub enum InstanceType{
+    Crpd,
+    Generic,
+    MetalLb,
+    Tgw,
+}
+
+impl Default for InstanceType{
+    fn default() -> Self{
+        InstanceType::Generic
+    }
+}
+
+impl Display for InstanceType {
+    fn fmt(&self, f: &mut Formatter) -> Result{
+        match self {
+            InstanceType::Crpd => write!(f, "Crpd"),
+            InstanceType::Generic => write!(f, "Generic"),
+            InstanceType::MetalLb => write!(f, "MetalLb"),
+            InstanceType::Tgw => write!(f, "Tgw"),
+        }
+    }
 }

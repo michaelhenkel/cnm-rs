@@ -8,7 +8,8 @@ use cnm_rs::controllers::{
     routing_instance::RoutingInstanceController,
     pool::PoolController,
     ip_address::IpAddressController,
-    crpd::interface::InterfaceController,
+    interface::InterfaceController,
+    crpd::interface_group::InterfaceGroupController,
     crpd::vrrp::VrrpController,
     controllers,
 };
@@ -172,6 +173,7 @@ async fn main() -> anyhow::Result<()> {
         Box::new(resources::routing_instance::RoutingInstanceResource::new(client.clone())),
         Box::new(resources::pool::PoolResource::new(client.clone())),
         Box::new(resources::ip_address::IpAddressResource::new(client.clone())),
+        Box::new(resources::interface_group::InterfaceGroupResource::new(client.clone())),
         Box::new(resources::interface::InterfaceResource::new(client.clone())),
         Box::new(resources::vrrp::VrrpResource::new(client.clone())),
     ];
@@ -185,6 +187,7 @@ async fn main() -> anyhow::Result<()> {
         Box::new(RoutingInstanceController::new(ctx.clone())),
         Box::new(IpAddressController::new(ctx.clone())),
         Box::new(PoolController::new(ctx.clone())),
+        Box::new(InterfaceGroupController::new(ctx.clone())),
         Box::new(InterfaceController::new(ctx.clone())),
         Box::new(VrrpController::new(ctx.clone())),
     ];
