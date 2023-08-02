@@ -1,8 +1,5 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
-use crate::controllers::crpd::junos::bgp;
-use crate::controllers::{controllers, bgp_router};
-use crate::resources::bgp_router_group::BgpRouterGroup;
-use crate::resources::ip_address::IpAddress;
+use crate::controllers::controllers;
 use crate::resources::pool::{
     Pool,
     PoolType,
@@ -13,18 +10,15 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use kube::{
     api::Api,
-    client::Client,
     runtime::{
         controller::{Action, Controller as runtime_controller},
         watcher::Config,
     },
 };
-use kube_runtime::reflector::ObjectRef;
-use std::collections::{BTreeMap, HashSet, BTreeSet};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
-use k8s_openapi::api::core::v1 as core_v1;
 use std::str::FromStr;
 
 pub struct PoolController{
@@ -76,12 +70,12 @@ impl PoolController{
 
                                 },
                                 PoolType::V6{
-                                    prefix,
-                                    length,
+                                    prefix: _,
+                                    length: _,
                                 } => {},
                                 PoolType::RouteTarget {
-                                    start,
-                                    size,
+                                    start: _,
+                                    size: _,
                                 } => {},
                             }
 
@@ -96,7 +90,7 @@ impl PoolController{
     
         Ok(Action::await_change())
     }
-    fn error_policy(g: Arc<Pool>, error: &ReconcileError, ctx: Arc<Context>) -> Action {
+    fn error_policy(_g: Arc<Pool>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
         warn!("reconcile failed: {:?}", error);
         Action::requeue(Duration::from_secs(5 * 60))
     }

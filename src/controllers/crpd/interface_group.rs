@@ -1,9 +1,9 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
-use crate::controllers::crpd::junos::bgp;
-use crate::controllers::{controllers, bgp_router};
+
+use crate::controllers::controllers;
 use crate::resources::interface::Interface;
 use crate::resources::crpd::crpd::Crpd;
-use crate::resources::bgp_router_group::BgpRouterGroup;
+
 use crate::resources::interface_group::{
     InterfaceGroup,
     InterfaceSelector,
@@ -15,7 +15,6 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use kube::{
     api::Api,
-    client::Client,
     runtime::{
         controller::{Action, Controller as runtime_controller},
         watcher::Config,
@@ -48,7 +47,7 @@ impl InterfaceGroupController{
         let (mut interface_group, _interface_group_api) = match controllers::get::<InterfaceGroup>(namespace, name,ctx.client.clone()).await{
             Ok(res) => {
                 match res{
-                    Some((mut interface, interface_api)) => {
+                    Some((interface, interface_api)) => {
                             (interface, interface_api)
                     }
                     None => { return Ok(Action::await_change()) }
@@ -164,7 +163,7 @@ impl InterfaceGroupController{
     
         Ok(Action::await_change())
     }
-    fn error_policy(g: Arc<InterfaceGroup>, error: &ReconcileError, ctx: Arc<Context>) -> Action {
+    fn error_policy(_g: Arc<InterfaceGroup>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
         warn!("reconcile failed: {:?}", error);
         Action::requeue(Duration::from_secs(5 * 60))
     }

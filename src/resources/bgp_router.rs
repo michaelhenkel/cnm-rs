@@ -12,8 +12,8 @@ use kube::{
 };
 use async_trait::async_trait;
 use k8s_openapi::api::core::v1 as core_v1;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
-use std::fmt::{Display, Result, Formatter};
+
+
 
 use crate::resources::resources::Resource;
 
@@ -148,7 +148,7 @@ impl Resource for BgpRouterResource{
             Err(e) => return Err(e.into()),                        // any other case is probably bad
         }
         // Wait for the api to catch up
-        sleep(Duration::from_secs(1)).await;
+        sleep(Duration::from_millis(500)).await;
         Ok(())
     }
 }

@@ -122,10 +122,12 @@ impl From<BgpRouter> for Configuration{
         }
     }
 }
-*/
+
 
 // combine vec combines two vecs into one
 fn combine_vec<T>(mut vec1: Vec<T>, mut vec2: Vec<T>) -> Vec<T>{
      vec1.append(&mut vec2);
      vec1
 }
+
+*/

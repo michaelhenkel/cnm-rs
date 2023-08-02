@@ -1,27 +1,23 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
-use crate::controllers::crpd::junos::bgp;
-use crate::controllers::{controllers, bgp_router};
-use crate::resources::bgp_router_group::BgpRouterGroup;
-use crate::resources::interface::{
-    Interface,
-    InterfaceStatus
-};
+
+use crate::controllers::controllers;
+
+use crate::resources::interface::Interface;
 use kube::Resource;
 use async_trait::async_trait;
 use futures::StreamExt;
 use kube::{
     api::Api,
-    client::Client,
     runtime::{
         controller::{Action, Controller as runtime_controller},
         watcher::Config,
     },
 };
-use std::collections::BTreeMap;
+
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
-use k8s_openapi::api::core::v1 as core_v1;
+
 
 pub struct InterfaceController{
     context: Arc<Context>,
@@ -42,7 +38,7 @@ impl InterfaceController{
         match controllers::get::<Interface>(namespace, name,ctx.client.clone()).await{
             Ok(res) => {
                 match res{
-                    Some((mut interface, _api)) => {
+                    Some((_interface, _api)) => {
                         
                     }
                     None => {}
@@ -54,7 +50,7 @@ impl InterfaceController{
     
         Ok(Action::await_change())
     }
-    fn error_policy(g: Arc<Interface>, error: &ReconcileError, ctx: Arc<Context>) -> Action {
+    fn error_policy(_g: Arc<Interface>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
         warn!("reconcile failed: {:?}", error);
         Action::requeue(Duration::from_secs(5 * 60))
     }

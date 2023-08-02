@@ -2,12 +2,10 @@ use crate::controllers::controllers::{Controller,
     Context,
     ReconcileError,
     action,
-    add_finalizer,
-    del_finalizer,
     ReconcileAction,
 };
-use crate::controllers::crpd::junos::bgp;
-use crate::controllers::{controllers, bgp_router, pool as pool_controller};
+
+use crate::controllers::{controllers, pool as pool_controller};
 use crate::resources::pool;
 use crate::resources::ip_address::{
     IpAddress,
@@ -19,19 +17,17 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use kube::{
     api::Api,
-    client::Client,
     runtime::{
         controller::{Action, Controller as runtime_controller},
         watcher::Config,
-        finalizer::{finalizer, Event},
     },
 };
-use std::collections::BTreeMap;
-use std::f32::consts::E;
+
+
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
-use k8s_openapi::api::core::v1 as core_v1;
+
 use std::str::FromStr;
 
 
@@ -48,8 +44,8 @@ impl IpAddressController{
     }
     async fn reconcile(g: Arc<IpAddress>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
         info!("reconciling IpAddress {:?}", g.meta().name.as_ref().unwrap().clone());
-        let name = g.meta().name.as_ref().unwrap().clone();
-        let namespace = g.meta().namespace.as_ref().unwrap().clone();
+        let _name = g.meta().name.as_ref().unwrap().clone();
+        let _namespace = g.meta().namespace.as_ref().unwrap().clone();
         /*
         let ip = match controllers::get::<IpAddress>(
             g.meta().namespace.as_ref().unwrap().clone(),
@@ -189,7 +185,7 @@ impl IpAddressController{
                                     let address: Vec<&str> = status.address.split("/").collect();
                                     let ip = match std::net::Ipv4Addr::from_str(&address[0].to_string()){
                                         Ok(ip) => ip,
-                                        Err(e) => return Err(ReconcileError(anyhow::anyhow!("wrong ip address format")))
+                                        Err(_e) => return Err(ReconcileError(anyhow::anyhow!("wrong ip address format")))
                                     };
                                     let ip = pool_controller::as_u32_be(&ip.octets());
                                     pool.status.as_mut().unwrap().return_number(ip as u128);
@@ -209,7 +205,7 @@ impl IpAddressController{
             ReconcileAction::NoOp => Ok(Action::await_change()),
         };
     }
-    fn error_policy(g: Arc<IpAddress>, error: &ReconcileError, ctx: Arc<Context>) -> Action {
+    fn error_policy(_g: Arc<IpAddress>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
         warn!("reconcile failed: {:?}", error);
         Action::requeue(Duration::from_secs(5 * 60))
     }

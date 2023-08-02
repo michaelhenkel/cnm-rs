@@ -79,7 +79,7 @@ impl Resource for VirtualNetworkResource{
             Err(e) => return Err(e.into()),                        // any other case is probably bad
         }
         // Wait for the api to catch up
-        sleep(Duration::from_secs(1)).await;
+        sleep(Duration::from_millis(500)).await;
         Ok(())
     }
 }

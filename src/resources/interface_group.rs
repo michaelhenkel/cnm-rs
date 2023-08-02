@@ -17,7 +17,7 @@ use async_trait::async_trait;
 use crate::resources::resources::Resource;
 use crate::resources::interface::InterfaceSpec;
 use k8s_openapi::api::core::v1 as core_v1;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
+
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
 #[kube(group = "cnm.juniper.net", version = "v1", kind = "InterfaceGroup", namespaced)]
@@ -100,7 +100,7 @@ impl Resource for InterfaceGroupResource{
             Err(e) => return Err(e.into()),                        // any other case is probably bad
         }
         // Wait for the api to catch up
-        sleep(Duration::from_secs(1)).await;
+        sleep(Duration::from_millis(500)).await;
         Ok(())
     }
 }

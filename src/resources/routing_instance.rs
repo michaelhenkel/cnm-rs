@@ -6,14 +6,14 @@ use tokio::time::sleep;
 use tracing::*;
 
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
+
 use kube::{
     api::{Api, PostParams, ResourceExt},
     core::crd::CustomResourceExt,
     Client, CustomResource,
 };
 use async_trait::async_trait;
-use crate::controllers::crpd::junos::routing_instance::Instance;
+
 
 use crate::resources::resources::Resource;
 use k8s_openapi::api::core::v1 as core_v1;
@@ -81,7 +81,7 @@ impl Resource for RoutingInstanceResource{
             Err(e) => return Err(e.into()),                        // any other case is probably bad
         }
         // Wait for the api to catch up
-        sleep(Duration::from_secs(1)).await;
+        sleep(Duration::from_millis(500)).await;
         Ok(())
     }
 }

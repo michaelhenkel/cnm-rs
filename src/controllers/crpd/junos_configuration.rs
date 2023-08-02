@@ -8,13 +8,12 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use kube::{
     api::Api,
-    client::Client,
     runtime::{
         controller::{Action, Controller as runtime_controller},
         watcher::Config,
     },
 };
-use std::f32::consts::E;
+
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
@@ -71,7 +70,7 @@ impl JunosConfigurationController{
                                 },
                             }
                         }
-                        if let Some(status) = bgp_router.status{
+                        if let Some(_status) = bgp_router.status{
                             
                         }
                     },
@@ -84,7 +83,7 @@ impl JunosConfigurationController{
         }
         Ok(Action::await_change())
     }
-    fn error_policy(g: Arc<BgpRouter>, error: &ReconcileError, ctx: Arc<Context>) -> Action {
+    fn error_policy(_g: Arc<BgpRouter>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
         warn!("reconcile failed: {:?}", error);
         Action::requeue(Duration::from_secs(5))
     }
@@ -111,7 +110,7 @@ impl Controller for JunosConfigurationController{
                                     Ok(ca) => {
                                         ca
                                     },
-                                    Err(e) => {return Err(anyhow::anyhow!("ca.crt is not valid utf8"))}
+                                    Err(_e) => {return Err(anyhow::anyhow!("ca.crt is not valid utf8"))}
                                 }
                             }
                             None => {return Err(anyhow::anyhow!("ca.crt not found in secret"))}
@@ -122,7 +121,7 @@ impl Controller for JunosConfigurationController{
                                     Ok(kp) => {
                                         kp
                                     },
-                                    Err(e) => {return Err(anyhow::anyhow!("kp.crt is not valid utf8"))}
+                                    Err(_e) => {return Err(anyhow::anyhow!("kp.crt is not valid utf8"))}
                                 }
                             }
                             None => {return Err(anyhow::anyhow!("kp.crt not found in secret"))}

@@ -1,5 +1,5 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError, self};
-use crate::resources::crpd::crpd::{Crpd, CrpdStatus, Instance};
+use crate::resources::crpd::crpd::{Crpd, CrpdStatus};
 use crate::resources::bgp_router_group::BgpRouterGroup;
 use crate::resources::interface_group::InterfaceGroup;
 use crate::resources::resources;
@@ -9,7 +9,6 @@ use kube::Resource;
 use kube::runtime::reflector::ObjectRef;
 use kube::{
     api::Api,
-    client::Client,
     runtime::{
         controller::{Action, Controller as runtime_controller},
         watcher::Config,
@@ -127,7 +126,7 @@ impl CrpdController{
                         };
                         let sts = apps_v1::StatefulSet::from(crpd.clone());
                         match controllers::create_or_update(sts.clone(), ctx.client.clone()).await{
-                            Ok(sts) => {
+                            Ok(_sts) => {
                                 info!("sts created");
                             },
                             Err(e) => {
@@ -164,7 +163,7 @@ impl CrpdController{
                             },
                         }
                         match controllers::update_status(crpd, ctx.client.clone()).await{
-                            Ok(crpd) => {
+                            Ok(_crpd) => {
                             },
                             Err(e) => {
                                 return Err(e);
@@ -183,7 +182,7 @@ impl CrpdController{
             },
         }
     }
-    fn error_policy(g: Arc<Crpd>, error: &ReconcileError, ctx: Arc<Context>) -> Action {
+    fn error_policy(_g: Arc<Crpd>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
         warn!("reconcile failed: {:?}", error);
         Action::requeue(Duration::from_secs(5 * 60))
     }

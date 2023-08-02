@@ -94,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
                         Ok(ca) => {
                             ca
                         },
-                        Err(e) => {return Err(anyhow::anyhow!("ca.crt is not valid utf8"))}
+                        Err(_e) => {return Err(anyhow::anyhow!("ca.crt is not valid utf8"))}
                     }
                 }
                 None => {return Err(anyhow::anyhow!("ca.crt not found in secret"))}
@@ -105,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
                         Ok(kp) => {
                             kp
                         },
-                        Err(e) => {return Err(anyhow::anyhow!("kp.crt is not valid utf8"))}
+                        Err(_e) => {return Err(anyhow::anyhow!("kp.crt is not valid utf8"))}
                     }
                 }
                 None => {return Err(anyhow::anyhow!("kp.crt not found in secret"))}
@@ -140,7 +140,7 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
-    let ca_test = match cert::ca_string_to_certificate(ca.clone(), kp.clone(), false){
+    let _ca_test = match cert::ca_string_to_certificate(ca.clone(), kp.clone(), false){
         Ok(ca_cert) => {
             ca_cert
         },

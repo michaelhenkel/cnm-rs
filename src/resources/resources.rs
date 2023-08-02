@@ -23,8 +23,8 @@ pub trait Resource: Send + Sync{
         let crds: Api<CustomResourceDefinition> = Api::all(client.clone());
         let fqdn = format!("{}.{}", self.name(), self.group());
         let dp = DeleteParams::default();
-        let _ = crds.get(fqdn.as_str()).await.map(|res|{
-            let pp = PatchParams::default();
+        let _ = crds.get(fqdn.as_str()).await.map(|_res|{
+            let _pp = PatchParams::default();
         });
         let _ = crds.delete(fqdn.as_str(), &dp).await.map(|res| {
             res.map_left(|o| {
@@ -38,7 +38,7 @@ pub trait Resource: Send + Sync{
                 info!("Deleted foos.clux.dev: ({:?})", s);
             })
         });
-        sleep(Duration::from_secs(2)).await;
+        sleep(Duration::from_millis(500)).await;
         Ok(())
     }
     async fn create(&self) -> anyhow::Result<()>;

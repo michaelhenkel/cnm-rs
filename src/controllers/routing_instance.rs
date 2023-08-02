@@ -1,6 +1,5 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
-use crate::controllers::crpd::junos::bgp;
-use crate::controllers::{controllers, bgp_router};
+use crate::controllers::controllers;
 use crate::resources::bgp_router_group::BgpRouterGroup;
 use crate::resources::routing_instance::{
     RoutingInstance,
@@ -11,7 +10,6 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use kube::{
     api::Api,
-    client::Client,
     runtime::{
         controller::{Action, Controller as runtime_controller},
         watcher::Config,
@@ -95,7 +93,7 @@ impl RoutingInstanceController{
     
         Ok(Action::await_change())
     }
-    fn error_policy(g: Arc<RoutingInstance>, error: &ReconcileError, ctx: Arc<Context>) -> Action {
+    fn error_policy(_g: Arc<RoutingInstance>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
         warn!("reconcile failed: {:?}", error);
         Action::requeue(Duration::from_secs(5 * 60))
     }

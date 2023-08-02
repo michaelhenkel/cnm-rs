@@ -7,7 +7,6 @@ use futures::StreamExt;
 use kube::{
     Resource,
     api::Api,
-    client::Client,
     runtime::{
         controller::{Action, Controller as runtime_controller},
         watcher::Config,
@@ -90,7 +89,7 @@ impl BgpRouterController{
         }
         Ok(Action::await_change())
     }
-    fn error_policy(g: Arc<BgpRouter>, error: &ReconcileError, ctx: Arc<Context>) -> Action {
+    fn error_policy(_g: Arc<BgpRouter>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
         warn!("reconcile failed: {:?}", error);
         Action::requeue(Duration::from_secs(5 * 60))
     }
@@ -133,8 +132,4 @@ impl Controller for BgpRouterController{
             .await;
         Ok(())
     }
-}
-
-fn test(obj: &BgpRouterGroup) -> Option<u64>{
-    Some(0)
 }

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use kube::{Client, Error, Api, client};
+use kube::{Client, Error, Api};
 use k8s_openapi::{NamespaceResourceScope, ClusterResourceScope};
-use kube::api::{ObjectMeta, PostParams, DeleteParams};
+use kube::api::{PostParams, DeleteParams};
 use serde::de::DeserializeOwned;
 use tracing::info;
 use std::collections::BTreeMap;
@@ -75,13 +75,8 @@ pub fn is_not_found(e: &Error) -> bool {
                             info!("Resource not found: {:?}", e);
                             return true
                         },
-                        _ => {
-                            return false
-                        },
+                        _ =>  return false,
                     }
-                },
-                _ => {
-                    return false
                 },
             }
         },
@@ -100,19 +95,12 @@ pub fn already_exists(e: &Error) -> bool {
                         "AlreadyExists" => {
                             return true
                         },
-                        _ => {
-                            return false
-                        },
+                        _ => return false
                     }
-                },
-                _ => {
-                    return false
-                },
+                }
             }
         },
-        _ => {
-            return false
-        },
+        _ => return false
     }
 }
 
@@ -343,7 +331,7 @@ T: Clone + DeserializeOwned + Debug + Serialize,
     match get::<T>(t.meta().namespace.as_ref().unwrap(), t.meta().name.as_ref().unwrap(), client.clone()).await{
         Ok(res) => {
             match res{
-                Some((mut current, _)) => {                    
+                Some((_current, _)) => {                    
                     patch(t, client).await
                 },
                 None => {
@@ -366,7 +354,7 @@ T: Clone + DeserializeOwned + Debug + Serialize,
     match get_cluster::<T>(t.meta().name.as_ref().unwrap().clone(), client.clone()).await{
         Ok(res) => {
             match res{
-                Some((mut current, _)) => {                    
+                Some((_current, _)) => {                    
                     patch_cluster(t, client).await
                 },
                 None => {

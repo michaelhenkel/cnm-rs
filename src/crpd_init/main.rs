@@ -1,14 +1,13 @@
-use std::{collections::{BTreeMap, HashMap}, any};
+use std::collections::BTreeMap;
 use kube::Client;
 use cnm_rs::{
     cert::cert,
-    controllers::{controllers, crpd::junos::family}, 
+    controllers::controllers, 
     resources::crpd::crpd::{
         Crpd,
         Instance,
         Interface
     },
-    resources::interface,
 };
 use k8s_openapi::{
     api::core::v1 as core_v1,
@@ -19,8 +18,6 @@ use tracing::info;
 use std::io::{Write, Read};
 use pwhash::{unix, bcrypt};
 use interfaces;
-use std::sync::Arc;
-
 
 #[tokio::main]
 pub async fn main() -> anyhow::Result<()> {
@@ -218,6 +215,7 @@ pub async fn main() -> anyhow::Result<()> {
     if let Err(e) = controllers::update_status(crpd.clone(), client.clone()).await{
         return Err(e.into());
     }
+
 
     // read linux interface configuration from the operating system
 

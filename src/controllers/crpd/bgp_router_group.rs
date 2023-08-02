@@ -1,6 +1,6 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
-use crate::controllers::crpd::junos::routing_instance;
-use crate::controllers::{controllers, bgp_router};
+
+use crate::controllers::controllers;
 use crate::resources::bgp_router_group::{
     BgpRouterGroup,
     BgpRouterGroupStatus,
@@ -13,7 +13,6 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use kube::{
     api::Api,
-    client::Client,
     runtime::{
         controller::{Action, Controller as runtime_controller},
         watcher::Config,
@@ -71,7 +70,7 @@ impl BgpRouterGroupController{
             },
         }
     }
-    fn error_policy(g: Arc<BgpRouterGroup>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
+    fn error_policy(_g: Arc<BgpRouterGroup>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
         warn!("reconcile failed: {:?}", error);
         Action::requeue(Duration::from_secs(5 * 60))
     }
@@ -79,7 +78,7 @@ impl BgpRouterGroupController{
 
 pub async fn handle_bgp_router(bgp_router_group: &mut BgpRouterGroup, ctx: Arc<Context>) -> Result<Action, ReconcileError>{
     if let Some(routing_instance_ref) = &bgp_router_group.spec.bgp_router_template.routing_instance_parent{
-        let routing_instance = match controllers::get::<RoutingInstance>(
+        let _routing_instance = match controllers::get::<RoutingInstance>(
             bgp_router_group.meta().namespace.as_ref().unwrap(),
             routing_instance_ref.name.as_ref().unwrap(), 
             ctx.client.clone()).await{

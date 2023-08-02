@@ -13,10 +13,6 @@ use kube::{
 use async_trait::async_trait;
 use k8s_openapi::api::apps::v1 as apps_v1;
 use k8s_openapi::api::core::v1 as core_v1;
-use k8s_openapi::Metadata;
-use kube::api::ObjectMeta;
-use std::collections::HashMap;
-
 use crate::resources::resources::Resource;
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
@@ -111,7 +107,7 @@ impl Resource for CrpdResource{
             Err(kube::Error::Api(ae)) => assert_eq!(ae.code, 409), // if you skipped delete, for instance
             Err(e) => return Err(e.into()),                        // any other case is probably bad
         }
-        sleep(Duration::from_secs(1)).await;
+        sleep(Duration::from_millis(500)).await;
         Ok(())
     }
 }

@@ -12,7 +12,7 @@ pub struct Client {
 }
 
 impl Client{
-    pub async fn new(address: String, domain_name: String, key: String, ca: String, cert: String) -> anyhow::Result<Client>{
+    pub async fn new(address: String, domain_name: String, _key: String, ca: String, _cert: String) -> anyhow::Result<Client>{
         //let client_identity = Identity::from_pem(cert, key);
         let mut map = MetadataMap::new();
         map.insert("client-id", "cnm".parse().unwrap());

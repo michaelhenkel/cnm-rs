@@ -1,14 +1,14 @@
-use rcgen::{generate_simple_self_signed, KeyPair, DnType, DnValue,CertificateParams, DistinguishedName,Certificate, SanType, IsCa, BasicConstraints, CertificateSigningRequest, SignatureAlgorithm, PKCS_RSA_SHA256};
-use openssl::asn1::{Asn1Time, Asn1IntegerRef};
-use openssl::hash::MessageDigest;
-use openssl::pkey::PKey;
-use openssl::rsa::Rsa;
-use openssl::asn1::Asn1Integer;
-use openssl::x509::{X509, X509NameBuilder, X509Name};
-use openssl::x509::extension::{AuthorityKeyIdentifier, ExtendedKeyUsage, KeyUsage, SubjectAlternativeName};
-use tracing::{info, warn};
-use std::f32::consts::E;
-use std::io::Write;
+use rcgen::{generate_simple_self_signed, KeyPair, DnType, DnValue,CertificateParams, DistinguishedName,Certificate, IsCa, BasicConstraints, CertificateSigningRequest, PKCS_RSA_SHA256};
+
+
+
+
+
+
+
+
+
+
 
 pub fn create_ca_key_cert(common_name: String) -> anyhow::Result<(String, String)> {
     let mut distinguished_name = DistinguishedName::new();
