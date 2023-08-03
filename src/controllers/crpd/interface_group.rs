@@ -90,6 +90,22 @@ impl InterfaceGroupController{
                                 intf_list
                             }
                         };
+
+                        let pod = match controllers::get::<core_v1::Pod>(
+                            namespace,
+                            instance_name,
+                            ctx.client.clone()).await{
+                                Ok(res) => {
+                                    match res{
+                                        Some((pod, _api)) => {
+                                            pod
+                                        },
+                                        None => return Ok(Action::requeue(Duration::from_secs(5)))
+                                    }
+                                },
+                                Err(e) => return Err(e)
+                            };
+
                         for (inst_intf_name, inst_intf) in intf_map{
                             let interface_name = format!("{}-{}", instance_name, inst_intf_name.clone());
                             let mut interface_spec = interface_group.spec.interface_template.clone();
@@ -122,12 +138,12 @@ impl InterfaceGroupController{
                             );
                             interface.metadata.owner_references = Some(
                                 vec![meta_v1::OwnerReference{
-                                    api_version: "cnm.juniper.net/v1".to_string(),
+                                    api_version: "v1".to_string(),
                                     block_owner_deletion: Some(false),
-                                    controller: Some(true),
-                                    kind: "InterfaceGroup".to_string(),
-                                    name: name.clone(),
-                                    uid: g.meta().uid.as_ref().unwrap().clone(),
+                                    controller: Some(false),
+                                    kind: "Pod".to_string(),
+                                    name: pod.meta().name.as_ref().unwrap().clone(),
+                                    uid: pod.meta().uid.as_ref().unwrap().clone(),
                                     ..Default::default()
                                 }]
                             );

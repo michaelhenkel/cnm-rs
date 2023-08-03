@@ -44,7 +44,7 @@ impl RoutingInstanceController{
                 match res{
                     Some((mut routing_instance, _api)) => {
                         let update_status = match controllers::list::<BgpRouterGroup>(
-                            routing_instance.meta().namespace.as_ref().unwrap().clone(),
+                            routing_instance.meta().namespace.as_ref().unwrap(),
                             ctx.client.clone(),
                             Some(BTreeMap::from([("cnm.juniper.net/routingInstance".to_string(), routing_instance.meta().name.as_ref().unwrap().clone())]))
                         ).await{

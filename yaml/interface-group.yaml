@@ -6,6 +6,7 @@ spec:
   interfaceSelector:
     all: true
   interfaceTemplate:
-    instanceType: Crpd
-    parent:
-      name: crpd1
+    instanceParent:
+      reference:
+        name: crpd1
+      parentType: Crpd

@@ -37,6 +37,8 @@ impl CrpdController{
         CrpdController{context, resource}
     }
     async fn reconcile(g: Arc<Crpd>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
+        let name = g.meta().name.as_ref().unwrap();
+        let namespace = g.meta().namespace.as_ref().unwrap();
         match controllers::get::<Crpd>(g.meta().namespace.as_ref().unwrap(),
             g.meta().name.as_ref().unwrap(),
             ctx.client.clone())
@@ -45,7 +47,7 @@ impl CrpdController{
                 match res{
                     Some((mut crpd, _crpd_api)) => {
                         match controllers::list::<BgpRouterGroup>(
-                            crpd.meta().namespace.as_ref().unwrap().clone(),
+                            namespace,
                             ctx.client.clone(),
                             Some(BTreeMap::from([("cnm.juniper.net/instanceSelector".to_string(), crpd.meta().name.as_ref().unwrap().clone())]))).await{
                                 Ok(res) => {
@@ -85,7 +87,7 @@ impl CrpdController{
                                 Err(e) => return Err(e),
                         };
                         match controllers::list::<InterfaceGroup>(
-                            crpd.meta().namespace.as_ref().unwrap().clone(),
+                            namespace,
                             ctx.client.clone(),
                             Some(BTreeMap::from([("cnm.juniper.net/instanceSelector".to_string(), crpd.meta().name.as_ref().unwrap().clone())]))).await{
                                 Ok(res) => {
@@ -162,6 +164,37 @@ impl CrpdController{
                                 return Err(e);
                             },
                         }
+
+                        match controllers::list::<core_v1::Pod>(namespace, ctx.client.clone(), Some(BTreeMap::from([(
+                            "cnm.juniper.net/instanceSelector".to_string(),
+                            name.clone(),
+                        )]))).await{
+                            Ok(pod_list) => {
+                                if let Some((pod_list, _)) = pod_list{
+                                    if let Some(instances) = crpd.status.as_mut().unwrap().instances.as_mut(){
+                                        let mut remove_list = Vec::new();
+                                        for (instance_name, _) in &*instances{
+                                            let mut found = false;
+                                            for pod in &pod_list{
+                                                if instance_name.clone() == pod.meta().name.as_ref().unwrap().clone(){
+                                                    found = true;
+                                                    break;
+                                                }
+                                            }
+                                            if !found{
+                                                remove_list.push(instance_name.clone());
+                                            }
+                                        }
+                                        for instance_name in remove_list{
+                                            instances.remove(&instance_name);
+                                        }
+                                    }
+
+                                }
+                            },
+                            Err(e) => return Err(e),
+                        }
+
                         match controllers::update_status(crpd, ctx.client.clone()).await{
                             Ok(_crpd) => {
                             },
@@ -253,17 +286,13 @@ impl Controller for CrpdController{
                 |sts| {
                     match &sts.meta().labels{
                         Some(labels) => {
-                            if labels.contains_key("app") && labels["app"] == "crpd"{
+                            if labels.contains_key("cnm.juniper.net/instanceType") && labels["cnm.juniper.net/instanceType"] == resources::InstanceType::Crpd.to_string(){
                                 Some(ObjectRef::<Crpd>::new(
                                     sts.meta().name.as_ref().unwrap())
                                     .within(sts.meta().namespace.as_ref().unwrap()))
-                            } else {
-                                None
-                            }
+                            } else { None }
                         },
-                        None => {
-                            None
-                        },
+                        None => None
                     }
                 }
             )
@@ -324,6 +353,7 @@ impl Controller for CrpdController{
                     } 
                 }
             )
+
             .run(reconcile, error_policy, self.context.clone())
             .for_each(|res| async move {
                 match res {
@@ -347,7 +377,8 @@ impl From<Crpd> for apps_v1::StatefulSet{
             }
         };
         labels.insert("app".to_string(), "crpd".to_string());
-        labels.insert("crpd".to_string(), crpd.metadata.name.as_ref().unwrap().clone());
+        labels.insert("cnm.juniper.net/instanceSelector".to_string(), crpd.metadata.name.as_ref().unwrap().clone());
+        labels.insert("cnm.juniper.net/instanceType".to_string(), resources::InstanceType::Crpd.to_string());
 
         apps_v1::StatefulSet{
             metadata: meta_v1::ObjectMeta{
@@ -367,7 +398,7 @@ impl From<Crpd> for apps_v1::StatefulSet{
                 replicas: Some(crpd.spec.replicas),
                 selector: meta_v1::LabelSelector { 
                     match_expressions: None,
-                    match_labels: Some(BTreeMap::from([("crpd".to_string(), crpd.metadata.name.as_ref().unwrap().clone())])),
+                    match_labels: Some(BTreeMap::from([("cnm.juniper.net/instanceSelector".to_string(), crpd.metadata.name.as_ref().unwrap().clone())])),
                 },
                 template: core_v1::PodTemplateSpec { 
                     metadata: Some(meta_v1::ObjectMeta {
