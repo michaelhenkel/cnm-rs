@@ -1,29 +1,36 @@
-use crate::controllers::controllers::{Controller, Context, ReconcileError, self};
-use crate::resources::crpd::crpd::{Crpd, CrpdStatus};
-use crate::resources::bgp_router_group::BgpRouterGroup;
-use crate::resources::interface_group::InterfaceGroup;
-use crate::resources::resources;
+use crate::controllers::controllers::{
+    Controller, Context, ReconcileError, self
+};
+use crate::resources::{
+    crpd::crpd::{Crpd, CrpdStatus},
+    bgp_router_group::BgpRouterGroup,
+    interface_group::InterfaceGroup,
+    resources
+};
 use async_trait::async_trait;
 use futures::StreamExt;
-use kube::Resource;
-use kube::runtime::reflector::ObjectRef;
 use kube::{
+    Resource,
     api::Api,
     runtime::{
         controller::{Action, Controller as runtime_controller},
         watcher::Config,
+        reflector::ObjectRef
     },
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
-use k8s_openapi::api::apps::v1 as apps_v1;
-use k8s_openapi::api::core::v1 as core_v1;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
-use k8s_openapi::api::rbac::v1 as rbac_v1;
+use k8s_openapi::{
+    api::{
+        apps::v1 as apps_v1,
+        core::v1 as core_v1,
+        rbac::v1 as rbac_v1,
+    },
+    apimachinery::pkg::apis::meta::v1 as meta_v1,
+};
 
-//rbac.authorization.k8s.io/v1
 
 pub struct CrpdController{
     context: Arc<Context>,
