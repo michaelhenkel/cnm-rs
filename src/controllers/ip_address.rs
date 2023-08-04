@@ -39,7 +39,6 @@ pub struct IpAddressController{
 impl IpAddressController{
     pub fn new(context: Arc<Context>) -> Self{
         let resource = Api::all(context.client.clone());
-        
         IpAddressController{context, resource}
     }
     async fn reconcile(g: Arc<IpAddress>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
@@ -84,8 +83,8 @@ impl IpAddressController{
         let name = g.meta().name.as_ref().unwrap();
         let namespace = g.meta().namespace.as_ref().unwrap();
         let ip = match controllers::get::<IpAddress>(
-            name,
             namespace,
+            name,
             ctx.client.clone())
             .await{
             Ok(res) => {

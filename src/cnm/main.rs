@@ -10,7 +10,8 @@ use cnm_rs::controllers::{
     ip_address::IpAddressController,
     interface::InterfaceController,
     crpd::interface_group::InterfaceGroupController,
-    crpd::vrrp::VrrpController,
+    vrrp::VrrpController,
+    crpd::vrrp_group::VrrpGroupController,
     controllers,
 };
 use cnm_rs::admission;
@@ -176,6 +177,7 @@ async fn main() -> anyhow::Result<()> {
         Box::new(resources::interface_group::InterfaceGroupResource::new(client.clone())),
         Box::new(resources::interface::InterfaceResource::new(client.clone())),
         Box::new(resources::vrrp::VrrpResource::new(client.clone())),
+        Box::new(resources::vrrp_group::VrrpGroupResource::new(client.clone())),
     ];
     resources::resources::init_resources(resource_list).await?;
 
@@ -190,6 +192,7 @@ async fn main() -> anyhow::Result<()> {
         Box::new(InterfaceGroupController::new(ctx.clone())),
         Box::new(InterfaceController::new(ctx.clone())),
         Box::new(VrrpController::new(ctx.clone())),
+        Box::new(VrrpGroupController::new(ctx.clone())),
     ];
     
     join_handlers.push(

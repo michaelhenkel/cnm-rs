@@ -48,13 +48,15 @@ pub struct VrrpSpec {
 #[serde(rename_all = "camelCase")]
 pub enum InterfaceSelector{
     Selector(meta_v1::LabelSelector),
-    Parent(core_v1::LocalObjectReference),
+    InterfaceGroupParent(core_v1::LocalObjectReference),
+    Device(String)
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Track{
-    pub interface: Vec<TrackInterface>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interface: Option<Vec<TrackInterface>>,
     pub notify_master: String,
     pub notify_backup: String,
 }
@@ -69,16 +71,25 @@ pub struct TrackInterface{
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VirtualAddress{
-    pub address: String,
+    pub address: VirtualAddressAdress,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device_name: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+pub enum VirtualAddressAdress{
+    Address(String),
+    PoolReference(core_v1::LocalObjectReference),
+}
+
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct VrrpUnicast{
-    pub local_address: Vec<String>,
-    pub peer_address: Vec<String>,
+    pub local_address: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_address: Option<Vec<String>>,
 }
 
 
@@ -120,8 +131,9 @@ pub struct VrrpUnicast{
 */
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct VrrpStatus {
-    pub bgp_router_group_references: Option<Vec<core_v1::ObjectReference>>,
+    pub virtual_address: String,
 }
 
 pub struct VrrpResource{

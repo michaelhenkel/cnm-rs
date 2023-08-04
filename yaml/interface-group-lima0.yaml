@@ -1,0 +1,13 @@
+apiVersion: cnm.juniper.net/v1
+kind: InterfaceGroup
+metadata:
+  name: lima0
+spec:
+  interfaceSelector:
+    list:
+    - lima0
+  interfaceTemplate:
+    instanceParent:
+      reference:
+        name: crpd1
+      parentType: Crpd

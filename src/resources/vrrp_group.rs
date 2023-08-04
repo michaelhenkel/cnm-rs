@@ -13,59 +13,40 @@ use kube::{
     Client, CustomResource,
 };
 use async_trait::async_trait;
-
 use crate::resources::resources::Resource;
-use crate::resources::interface::InterfaceSpec;
+use crate::resources::vrrp::VrrpSpec;
 use k8s_openapi::api::core::v1 as core_v1;
 
-
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
-#[kube(group = "cnm.juniper.net", version = "v1", kind = "InterfaceGroup", namespaced)]
-#[kube(status = "InterfaceGroupStatus")]
+#[kube(group = "cnm.juniper.net", version = "v1", kind = "VrrpGroup", namespaced)]
+#[kube(status = "VrrpGroupStatus")]
 #[serde(rename_all = "camelCase")]
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
-pub struct InterfaceGroupSpec {
+pub struct VrrpGroupSpec {
     #[schemars(length(min = 1))]
     #[garde(skip)]
-    pub interface_selector: InterfaceSelector,
-    #[garde(skip)]
-    pub interface_template: InterfaceSpec,
+    pub vrrp_template: VrrpSpec,
 }
-
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub enum InterfaceSelector{
-    All(bool),
-    List(Vec<String>)
-}
-
-impl Default for InterfaceSelector{
-    fn default() -> Self{
-        InterfaceSelector::All(true)
-    }
-}
-
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct InterfaceGroupStatus {
-    pub interface_references: Vec<core_v1::LocalObjectReference>,
-    pub vrrp_group_references: Vec<core_v1::LocalObjectReference>,
+pub struct VrrpGroupStatus {
+    pub vrrp_references: Vec<core_v1::LocalObjectReference>,
 }
 
-pub struct InterfaceGroupResource{
+pub struct VrrpGroupResource{
     client: Client,
     name: String,
     group: String,
     version: String,
 }
 
-impl InterfaceGroupResource{
+impl VrrpGroupResource{
     pub fn new(client: Client) -> Self{
-        let name = "interfacegroups".to_string();
+        let name = "vrrpgroups".to_string();
         let group = "cnm.juniper.net".to_string();
         let version = "v1".to_string();
-        InterfaceGroupResource{
+        VrrpGroupResource{
             client,
             name,
             group,
@@ -75,7 +56,7 @@ impl InterfaceGroupResource{
 }
 
 #[async_trait]
-impl Resource for InterfaceGroupResource{
+impl Resource for VrrpGroupResource{
     fn client(&self) -> Client{
         self.client.clone()
     }
@@ -90,7 +71,7 @@ impl Resource for InterfaceGroupResource{
     }
     async fn create(&self) -> anyhow::Result<()>{
         let crds: Api<CustomResourceDefinition> = Api::all(self.client.clone());
-        let crd = InterfaceGroup::crd();
+        let crd = VrrpGroup::crd();
         info!("Creating CRD: {}",self.name);
         let pp = PostParams::default();
         match crds.create(&pp, &crd).await {

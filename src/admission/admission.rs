@@ -4,7 +4,9 @@ use crate::resources::{
     bgp_router_group,
     interface_group,
     interface,
-    ip_address
+    ip_address,
+    vrrp_group,
+    vrrp
 };
 use crate::controllers::controllers;
 use kube::{core::{
@@ -103,6 +105,8 @@ impl AdmissionController{
                     "bgproutergroups".to_string(),
                     "interfacegroups".to_string(),
                     "interfaces".to_string(),
+                    "ipaddresses".to_string(),
+                    "vrrpgroups".to_string(),
                 ]),
                 scope: Some("Namespaced".to_string()),
                 ..Default::default()
@@ -180,6 +184,18 @@ fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionRespon
                     let interface_group_spec = serde_json::from_value::<interface_group::InterfaceGroupSpec>(spec.clone())?;
                     labels.insert("cnm.juniper.net~1instanceType", interface_group_spec.interface_template.instance_parent.parent_type.to_string());
                     labels.insert("cnm.juniper.net~1instanceSelector", interface_group_spec.interface_template.instance_parent.reference.name.as_ref().unwrap().clone());
+                }
+            },
+            "VrrpGroup" => {
+                info!("VrrpGroup: {}", obj.data);
+                if let Some(spec) = obj.data.get("spec"){
+                    let vrrp_group_spec = serde_json::from_value::<vrrp_group::VrrpGroupSpec>(spec.clone())?;
+                    match vrrp_group_spec.vrrp_template.interface_selector{
+                        vrrp::InterfaceSelector::InterfaceGroupParent(interface_group_parent) => {
+                            labels.insert("cnm.juniper.net~1interfaceGroup", interface_group_parent.name.as_ref().unwrap().clone());
+                        },
+                        _ => {}
+                    }
                 }
             },
             _ => {

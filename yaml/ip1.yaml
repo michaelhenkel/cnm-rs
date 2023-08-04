@@ -5,4 +5,4 @@ metadata:
 spec:
   family: v4
   pool:
-    name: pool1
+    name: loopback-pool

@@ -1,7 +1,7 @@
 apiVersion: cnm.juniper.net/v1
 kind: Pool
 metadata:
-  name: pool1
+  name: loopback-pool
 spec:
   poolType:
     v4:

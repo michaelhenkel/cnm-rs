@@ -16,7 +16,6 @@ use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
 
-
 pub struct VrrpController{
     context: Arc<Context>,
     resource: Api<Vrrp>,

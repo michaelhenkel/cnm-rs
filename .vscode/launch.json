@@ -37,6 +37,9 @@
                     "kind": "bin"
                 }
             },
+            "env": {
+                "KUBECONFIG": "/Users/mhenkel/k0s/config"
+            },
             "args": ["-a=192.168.105.1"],
             "cwd": "${workspaceFolder}"
         },

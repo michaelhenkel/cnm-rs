@@ -1,0 +1,14 @@
+apiVersion: cnm.juniper.net/v1
+kind: VrrpGroup
+metadata:
+  name: vg-lima0
+spec:
+  vrrpTemplate:
+    interfaceSelector:
+      interfaceGroupParent:
+        name: lima0
+    virtualAddress:
+      address:
+        poolReference:
+          name: loopback-pool
+    group: 1

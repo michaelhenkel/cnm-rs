@@ -1,0 +1,13 @@
+apiVersion: cnm.juniper.net/v1
+kind: InterfaceGroup
+metadata:
+  name: eth0
+spec:
+  interfaceSelector:
+    list:
+    - eth0
+  interfaceTemplate:
+    instanceParent:
+      reference:
+        name: crpd1
+      parentType: Crpd

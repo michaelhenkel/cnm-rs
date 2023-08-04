@@ -3,6 +3,8 @@ use crate::controllers::controllers::{Controller, Context, ReconcileError};
 use crate::controllers::controllers;
 use crate::resources::interface::Interface;
 use crate::resources::crpd::crpd::Crpd;
+use crate::resources::vrrp;
+use crate::resources::vrrp_group;
 
 use crate::resources::interface_group::{
     InterfaceGroup,
@@ -164,11 +166,35 @@ impl InterfaceGroupController{
                 }
             }
 
+            let mut vrrp_group_references = Vec::new();
+            match controllers::list::<vrrp_group::VrrpGroup>(
+                namespace,
+                ctx.client.clone(),
+                Some(BTreeMap::from([(
+                    "cnm.juniper.net/interfaceGroup".to_string(), name.clone()
+                )]))).await{
+                Ok(res) => {
+                    if let Some((vrrp_group_list, _)) = res {
+                        for vrrp_group in vrrp_group_list{
+                            vrrp_group_references.push(
+                                core_v1::LocalObjectReference{
+                                    name: Some(vrrp_group.meta().name.as_ref().unwrap().clone())
+                                }
+                            )
+                        }
+                    }
+                },
+                Err(e) => return Err(e)
+            };
+
+
             if let Some(status) = interface_group.status.as_mut(){
                 status.interface_references = interface_references;
+                status.vrrp_group_references = vrrp_group_references;
             } else {
                 let status = InterfaceGroupStatus{
-                    interface_references
+                    interface_references,
+                    vrrp_group_references
                 };
                 interface_group.status = Some(status);
             }
@@ -232,6 +258,30 @@ impl Controller for InterfaceGroupController{
                                 Some(ObjectRef::<InterfaceGroup>::new(
                                     interface_group_name)
                                     .within(interface.meta().namespace.as_ref().unwrap()))
+                            },
+                            None => {
+                                None
+                            }
+                        }
+                    },
+                    None => {
+                        None
+                    }
+                }
+            }
+        )
+        .watches(
+            Api::<vrrp_group::VrrpGroup>::all(self.context.client.clone()),
+            Config::default(),
+            |vrrp_group| {
+                info!("vrrp_group event in interface_group controller:");
+                match &vrrp_group.meta().labels{
+                    Some(labels) => {
+                        match labels.get("cnm.juniper.net/interfaceGroup"){
+                            Some(interface_group_name) => {
+                                Some(ObjectRef::<InterfaceGroup>::new(
+                                    interface_group_name)
+                                    .within(vrrp_group.meta().namespace.as_ref().unwrap()))
                             },
                             None => {
                                 None
