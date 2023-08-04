@@ -37,49 +37,7 @@ impl BgpRouterController{
             .await{
             Ok(res) => {
                 match res{
-                    Some((mut bgp_router, _bgp_router_api)) => {
-                        if let Some(labels) = &bgp_router.meta().labels{
-                            if let Some(bgp_router_group_name) = labels.get("cnm.juniper.net/bgpRouterGroup"){
-                                if let Ok(res) = controllers::get::<BgpRouterGroup>(bgp_router.meta().namespace.as_ref().unwrap(), bgp_router_group_name, ctx.client.clone()).await{
-                                    if let Some((bgp_router_group, _)) = res{
-                                        if let Some(bgp_router_group_status) = bgp_router_group.status{
-                                            let mut bgp_peering_references = Vec::new();
-                                            for bgp_router_reference in &bgp_router_group_status.bgp_router_references{
-                                                if bgp_router_reference.bgp_router_reference.name.as_ref().unwrap().clone() != bgp_router.meta().name.as_ref().unwrap().clone(){
-                                                    let bgp_peering_reference = BgpPeeringReference{
-                                                        peer_reference: bgp_router_reference.bgp_router_reference.clone(),
-                                                        bgp_router_group: Some(bgp_router_group_name.to_string()),
-                                                        session_attributes: BgpSessionAttributes{
-                                                            local_v4_address: bgp_router.spec.v4_address.clone(),
-                                                            peer_v4_address: bgp_router_reference.local_v4_address.clone(),
-                                                            local_v6_address: bgp_router.spec.v6_address.clone(),
-                                                            peer_v6_address: bgp_router_reference.local_v6_address.clone(),
-                                                            local_as: bgp_router.spec.autonomous_system_number,
-                                                            peer_as: bgp_router.spec.autonomous_system_number,
-                                                            address_families: bgp_router.spec.address_families.clone(),
-                                                        }
-                                                    };
-                                                    bgp_peering_references.push(bgp_peering_reference);
-                                                }
-                                            }
-
-                                            if bgp_router.status.is_some(){
-                                                bgp_router.status.as_mut().unwrap().bgp_peer_references = Some(bgp_peering_references);
-                                            } else {
-                                                bgp_router.status = Some(BgpRouterStatus{
-                                                    bgp_peer_references: Some(bgp_peering_references),
-                                                });
-                                            }  
-
-                                            if let Err(e) = controllers::update_status::<BgpRouter>(bgp_router.clone(), ctx.client.clone()).await{
-                                                return Err(e);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
+                    Some((mut bgp_router, _bgp_router_api)) => {},
                     None => {}
                 }
             }
@@ -108,18 +66,20 @@ impl Controller for BgpRouterController{
             .watches(
                 Api::<BgpRouterGroup>::all(self.context.client.clone()),
                 Config::default(),
-                |bgp_router_group| {
-                    info!("crpd event in bgp_router_group controller:");
-                    let mut object_ref_list = Vec::new();
-                    if let Some(status) = &bgp_router_group.status{
-                        for bgp_router_reference in &status.bgp_router_references{
-                            let object_ref = ObjectRef::<BgpRouter>::new(
-                                bgp_router_reference.bgp_router_reference.name.as_ref().unwrap())
-                                .within(bgp_router_group.meta().namespace.as_ref().unwrap().clone().as_str());
-                            object_ref_list.push(object_ref);
+                |group| {
+                    info!("bgp_router_group event in bgp_router controller:");
+                    let mut object_list = Vec::new();
+                    let namespace = group.meta().namespace.as_ref().unwrap();
+                    if let Some(status) = &group.status{
+                        if let Some(obj_refs) = &status.bgp_router_references{
+                            object_list = obj_refs.iter().map(|obj_ref|{
+                                ObjectRef::<BgpRouter>::new(
+                                    obj_ref.bgp_router_reference.name.as_ref().unwrap().clone().as_str())
+                                    .within(namespace)
+                            }).collect();
                         }
                     }
-                    object_ref_list.into_iter()
+                    object_list.into_iter()
                 }
             )
             .run(reconcile, error_policy, self.context.clone())

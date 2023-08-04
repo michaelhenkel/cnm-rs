@@ -5,6 +5,7 @@ use crate::resources::routing_instance::{
     RoutingInstance,
     RoutingInstanceStatus
 };
+use crate::resources::routing_instance_group::RoutingInstanceGroup;
 use kube::Resource;
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -15,6 +16,7 @@ use kube::{
         watcher::Config,
     },
 };
+use kube_runtime::reflector::ObjectRef;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -29,12 +31,10 @@ pub struct RoutingInstanceController{
 impl RoutingInstanceController{
     pub fn new(context: Arc<Context>) -> Self{
         let resource = Api::all(context.client.clone());
-        
         RoutingInstanceController{context, resource}
     }
     async fn reconcile(g: Arc<RoutingInstance>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
         info!("reconciling RoutingInstance {:?}", g.meta().name.as_ref().unwrap().clone());
-        
         match controllers::get::<RoutingInstance>(
             g.meta().namespace.as_ref().unwrap(),
             g.meta().name.as_ref().unwrap(),
@@ -42,55 +42,12 @@ impl RoutingInstanceController{
             .await{
             Ok(res) => {
                 match res{
-                    Some((mut routing_instance, _api)) => {
-                        let update_status = match controllers::list::<BgpRouterGroup>(
-                            routing_instance.meta().namespace.as_ref().unwrap(),
-                            ctx.client.clone(),
-                            Some(BTreeMap::from([("cnm.juniper.net/routingInstance".to_string(), routing_instance.meta().name.as_ref().unwrap().clone())]))
-                        ).await{
-                            Ok(res) => {
-                                match res{
-                                    Some((bgp_router_groups, _api)) => {
-                                        let mut bgp_router_group_refs = Vec::new();
-                                        for bgp_router_group in bgp_router_groups{
-                                            let bgp_router_group_ref = core_v1::ObjectReference{
-                                                api_version: Some("cnm.juniper.net/v1".to_string()),
-                                                kind: Some("BgpRouterGroup".to_string()),
-                                                name: Some(bgp_router_group.meta().name.as_ref().unwrap().clone()),
-                                                namespace: Some(bgp_router_group.meta().namespace.as_ref().unwrap().clone()),
-                                                ..Default::default()
-                                            };
-                                            bgp_router_group_refs.push(bgp_router_group_ref);
-                                        }
-                                        if let Some(status) = routing_instance.status.as_mut(){
-                                            status.bgp_router_group_references = Some(bgp_router_group_refs);
-                                        } else {
-                                            let status = RoutingInstanceStatus{
-                                                bgp_router_group_references: Some(bgp_router_group_refs),
-                                            };
-                                            routing_instance.status = Some(status);
-                                        }
-                                        true
-                                    },
-                                    None => false
-                                }
-                            },
-                            Err(e) => return Err(e)
-                        };
-                        if update_status{
-                            match controllers::update_status(routing_instance, ctx.client.clone()).await{
-                                Ok(_res) => {},
-                                Err(e) => return Err(e)
-                            }
-                        }
-                    }
+                    Some((mut routing_instance, _api)) => {},
                     None => {}
                 }
             },
             Err(e) => return Err(e)
-            
         }
-    
         Ok(Action::await_change())
     }
     fn error_policy(_g: Arc<RoutingInstance>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
@@ -109,6 +66,25 @@ impl Controller for RoutingInstanceController{
             RoutingInstanceController::error_policy(g, error, ctx)
         };
         runtime_controller::new(self.resource.clone(), Config::default())
+            .watches(
+                Api::<RoutingInstanceGroup>::all(self.context.client.clone()),
+                Config::default(),
+                |group| {
+                    info!("routing_instance_group event in routing_instance controller:");
+                    let mut object_list = Vec::new();
+                    let namespace = group.meta().namespace.as_ref().unwrap();
+                    if let Some(status) = &group.status{
+                        if let Some(refs) = &status.routing_instance_references{
+                            object_list = refs.iter().map(|obj_ref|{
+                                ObjectRef::<RoutingInstance>::new(
+                                    obj_ref.name.as_ref().unwrap().clone().as_str())
+                                    .within(namespace)
+                            }).collect();
+                        }
+                    }
+                    object_list.into_iter()
+                }
+            )
             .run(reconcile, error_policy, self.context.clone())
             .for_each(|res| async move {
                 match res {

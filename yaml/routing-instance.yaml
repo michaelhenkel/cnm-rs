@@ -1,9 +1,0 @@
-apiVersion: cnm.juniper.net/v1
-kind: RoutingInstance
-metadata:
-  name: ri1
-spec:
-  parent:
-    name: crpd1
-    kind: Crpd
-    namespace: default

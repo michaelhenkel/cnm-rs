@@ -85,42 +85,7 @@ pub struct InterfaceInet{
 pub struct InterfaceInet6{
     pub address: String,
 }
-/*
-            eth2 {
-                mtu 9001;
-                unit 0 {
-                    family inet {
-                        address 10.0.3.111/24 {
-                            vrrp-group 1 {
-                                priority 100;
-                                fast-interval 100;
-                                track {
-                                    interface eth4 {
-                                        weight {
-                                            cost 100;
-                                        }
-                                    }
-                                    notify-master {
-                                        script-name /config/scripts/jcnr-aws-agent-master.sh;
-                                    }
-                                    notify-backup {
-                                        script-name /config/scripts/jcnr-aws-agent-backup.sh;
-                                    }
-                                }
-                                virtual-address 192.168.1.1/32 {
-                                    device-name eth2;
-                                }
-                                unicast {
-                                    local-address 10.0.3.111;
-                                    peer-address 10.0.3.101;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
 
-*/
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 pub struct InterfaceStatus {}

@@ -14,23 +14,29 @@ use kube::{
 };
 use async_trait::async_trait;
 
-
+use super::resources;
 use crate::resources::resources::Resource;
 use k8s_openapi::api::core::v1 as core_v1;
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
 #[kube(group = "cnm.juniper.net", version = "v1", kind = "RoutingInstance", namespaced)]
 #[kube(status = "RoutingInstanceStatus")]
+#[serde(rename_all = "camelCase")]
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
 pub struct RoutingInstanceSpec {
     #[garde(skip)]
-    pub parent: core_v1::ObjectReference,
+    pub instance_parent: Option<resources::Parent>,
+    #[garde(skip)]
+    pub managed: bool,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RoutingInstanceStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub bgp_router_group_references: Option<Vec<core_v1::ObjectReference>>,
+    pub bgp_router_references: Option<Vec<core_v1::ObjectReference>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_instance_group_reference: Option<core_v1::ObjectReference>,
 }
 
 pub struct RoutingInstanceResource{

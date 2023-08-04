@@ -1,0 +1,11 @@
+apiVersion: cnm.juniper.net/v1
+kind: RoutingInstanceGroup
+metadata:
+  name: rig1
+spec:
+  routingInstanceTemplate:
+    managed: true
+    instanceParent:
+      reference:
+        name: crpd1
+      parentType: Crpd

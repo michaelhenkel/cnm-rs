@@ -6,7 +6,9 @@ use crate::resources::{
     interface,
     ip_address,
     vrrp_group,
-    vrrp
+    vrrp,
+    routing_instance,
+    routing_instance_group
 };
 use crate::controllers::controllers;
 use kube::{core::{
@@ -107,6 +109,8 @@ impl AdmissionController{
                     "interfaces".to_string(),
                     "ipaddresses".to_string(),
                     "vrrpgroups".to_string(),
+                    "routinginstances".to_string(),
+                    "routinginstancegroups".to_string(),
                 ]),
                 scope: Some("Namespaced".to_string()),
                 ..Default::default()
@@ -148,7 +152,7 @@ fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionRespon
                         None => {}
                     }
             
-                    labels.insert("cnm.juniper.net~1bgpRouterManaged", bgp_router_spec.managed.to_string());
+                    labels.insert("cnm.juniper.net~1managed", bgp_router_spec.managed.to_string());
                 }
             },
             "BgpRouterGroup" => {
@@ -195,6 +199,32 @@ fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionRespon
                             labels.insert("cnm.juniper.net~1interfaceGroup", interface_group_parent.name.as_ref().unwrap().clone());
                         },
                         _ => {}
+                    }
+                }
+            },
+            "RoutingInstance" => {
+                info!("RoutingInstance: {}", obj.data);
+                if let Some(spec) = obj.data.get("spec"){
+                    let spec = serde_json::from_value::<routing_instance::RoutingInstanceSpec>(spec.clone())?;
+                    match spec.instance_parent{
+                        Some(instance_parent) => {
+                            labels.insert("cnm.juniper.net~1instanceType", instance_parent.parent_type.to_string());
+                        },
+                        None => {}
+                    }
+                    labels.insert("cnm.juniper.net~1managed", spec.managed.to_string());
+                }
+            },
+            "RoutingInstanceGroup" => {
+                info!("RoutingInstanceGroup: {}", obj.data);
+                if let Some(spec) = obj.data.get("spec"){
+                    let spec = serde_json::from_value::<routing_instance_group::RoutingInstanceGroupSpec>(spec.clone())?;
+                    match spec.routing_instance_template.instance_parent{
+                        Some(instance_parent) => {
+                            labels.insert("cnm.juniper.net~1instanceSelector", instance_parent.reference.name.as_ref().unwrap().clone());
+                            labels.insert("cnm.juniper.net~1instanceType", instance_parent.parent_type.to_string());
+                        },
+                        None => {}
                     }
                 }
             },

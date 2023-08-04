@@ -1,6 +1,7 @@
 use crate::controllers::controllers::{
     Controller, Context, ReconcileError, self
 };
+use crate::resources::routing_instance_group::RoutingInstanceGroup;
 use crate::resources::{
     crpd::crpd::{Crpd, CrpdStatus},
     bgp_router_group::BgpRouterGroup,
@@ -53,43 +54,47 @@ impl CrpdController{
             Ok(res) => {
                 match res{
                     Some((mut crpd, _crpd_api)) => {
-                        match controllers::list::<BgpRouterGroup>(
-                            namespace,
-                            ctx.client.clone(),
-                            Some(BTreeMap::from([("cnm.juniper.net/instanceSelector".to_string(), crpd.meta().name.as_ref().unwrap().clone())]))).await{
+                        match controllers::list::<BgpRouterGroup>(namespace,ctx.client.clone(),Some(BTreeMap::from([
+                            ("cnm.juniper.net/instanceSelector".to_string(), name.to_string())
+                            ]))).await{
                                 Ok(res) => {
-                                    match res{
-                                        Some((bgp_router_group_list, _)) => {
-                                            let mut bgp_router_group_ref_list = Vec::new();
-                                            for bgp_router_group in &bgp_router_group_list{
-                                                let bgp_router_group_ref = core_v1::ObjectReference{
-                                                    api_version: Some("cnm.juniper.net/v1".to_string()),
-                                                    kind: Some("BgpRouterGroup".to_string()),
-                                                    name: Some(bgp_router_group.meta().name.as_ref().unwrap().clone()),
-                                                    namespace: Some(bgp_router_group.meta().namespace.as_ref().unwrap().clone()),
-                                                    uid: Some(bgp_router_group.meta().uid.as_ref().unwrap().clone()),
-                                                    ..Default::default()
-                                                };
-                                                bgp_router_group_ref_list.push(bgp_router_group_ref);
+                                    if let Some((bgp_router_group_list,_)) = res {
+                                        let ref_list: Vec<core_v1::LocalObjectReference> = bgp_router_group_list.iter().map(|obj|{
+                                            core_v1::LocalObjectReference{
+                                                name: Some(obj.meta().name.as_ref().unwrap().clone()),
                                             }
-                                            
-                                            let status = match crpd.clone().status{
-                                                Some(mut status) => {
-                                                    status.bgp_router_group_references = Some(bgp_router_group_ref_list);
-                                                    status
-                                                },
-                                                None => {
-                                                    let status = Some(CrpdStatus{
-                                                        bgp_router_group_references: Some(bgp_router_group_ref_list),
-                                                        ..Default::default()
-                                                    });
-                                                    status.unwrap()
-                                                },
-                                            };
-                                            crpd.status = Some(status.clone());
-                                        },
-                                        None => {}
-                                    };
+                                        }).collect();
+                                        if let Some(status) = crpd.status.as_mut(){
+                                            status.bgp_router_group_references = Some(ref_list);
+                                        } else {
+                                            crpd.status = Some(CrpdStatus{
+                                                bgp_router_group_references: Some(ref_list),
+                                                ..Default::default()
+                                            });
+                                        }
+                                    }
+                                },
+                                Err(e) => return Err(e),
+                        };
+                        match controllers::list::<RoutingInstanceGroup>(namespace,ctx.client.clone(),Some(BTreeMap::from([
+                            ("cnm.juniper.net/instanceSelector".to_string(), name.to_string())
+                            ]))).await{
+                                Ok(res) => {
+                                    if let Some((routing_instance_group_list,_)) = res {
+                                        let ref_list: Vec<core_v1::LocalObjectReference> = routing_instance_group_list.iter().map(|obj|{
+                                            core_v1::LocalObjectReference{
+                                                name: Some(obj.meta().name.as_ref().unwrap().clone()),
+                                            }
+                                        }).collect();
+                                        if let Some(status) = crpd.status.as_mut(){
+                                            status.routing_instance_group_references = Some(ref_list);
+                                        } else {
+                                            crpd.status = Some(CrpdStatus{
+                                                routing_instance_group_references: Some(ref_list),
+                                                ..Default::default()
+                                            });
+                                        }
+                                    }
                                 },
                                 Err(e) => return Err(e),
                         };
@@ -304,37 +309,39 @@ impl Controller for CrpdController{
                 }
             )
             .watches(
-                Api::<BgpRouterGroup>::all(self.context.client.clone()),
+                Api::<RoutingInstanceGroup>::all(self.context.client.clone()),
                 Config::default(),
-                |bgp_router_group| {
-                    if let Some(instance_parent) = &bgp_router_group.spec.bgp_router_template.instance_parent{
-                        match instance_parent.parent_type{
-                            resources::InstanceType::Crpd => { 
-                                match &bgp_router_group.meta().labels{
-                                    Some(labels) => {
-                                        match labels.get("cnm.juniper.net/instanceSelector"){
-                                            Some(selector_name) => {
-                                                Some(ObjectRef::<Crpd>::new(
-                                                    selector_name)
-                                                    .within(bgp_router_group.meta().namespace.as_ref().unwrap()))
-                                            },
-                                            None => {
-                                                None
-                                            },
-                                        }
-                                    },
-                                    None => {
-                                        None
-                                    },
+                |group| {
+                        if let Some(labels) = &group.meta().labels{
+                            if let Some(instance_type) = labels.get("cnm.juniper.net/instanceType"){
+                                if instance_type.contains(&resources::InstanceType::Crpd.to_string()){
+                                    if let Some(selector) = labels.get("cnm.juniper.net/instanceSelector"){
+                                        return Some(ObjectRef::<Crpd>::new(selector)
+                                            .within(group.meta().namespace.as_ref().unwrap()));
+                                    }
                                 }
-                            },
-                            _ => None,
+                            }
                         }
-                    } else {
                         None
                     }
-                }
-            )
+                )
+            .watches(
+                Api::<BgpRouterGroup>::all(self.context.client.clone()),
+                Config::default(),
+                |group| {
+                        if let Some(labels) = &group.meta().labels{
+                            if let Some(instance_type) = labels.get("cnm.juniper.net/instanceType"){
+                                if instance_type.contains(&resources::InstanceType::Crpd.to_string()){
+                                    if let Some(selector) = labels.get("cnm.juniper.net/instanceSelector"){
+                                        return Some(ObjectRef::<Crpd>::new(selector)
+                                            .within(group.meta().namespace.as_ref().unwrap()));
+                                    }
+                                }
+                            }
+                        }
+                        None
+                    }
+                )
             .watches(
                 Api::<InterfaceGroup>::all(self.context.client.clone()),
                 Config::default(),
