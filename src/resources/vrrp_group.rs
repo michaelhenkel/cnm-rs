@@ -31,7 +31,7 @@ pub struct VrrpGroupSpec {
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VrrpGroupStatus {
-    pub vrrp_references: Vec<core_v1::LocalObjectReference>,
+    pub vrrp_references: Option<Vec<core_v1::LocalObjectReference>>,
 }
 
 pub struct VrrpGroupResource{

@@ -43,7 +43,9 @@ pub struct CrpdStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bgp_router_group_references: Option<Vec<core_v1::LocalObjectReference>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub interface_group_references: Option<Vec<core_v1::ObjectReference>>,
+    pub interface_group_references: Option<Vec<core_v1::LocalObjectReference>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vrrp_group_references: Option<Vec<core_v1::LocalObjectReference>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub routing_instance_group_references: Option<Vec<core_v1::LocalObjectReference>>,
 }

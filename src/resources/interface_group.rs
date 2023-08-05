@@ -49,8 +49,8 @@ impl Default for InterfaceSelector{
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct InterfaceGroupStatus {
-    pub interface_references: Vec<core_v1::LocalObjectReference>,
-    pub vrrp_group_references: Vec<core_v1::LocalObjectReference>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interface_references: Option<Vec<core_v1::LocalObjectReference>>,
 }
 
 pub struct InterfaceGroupResource{

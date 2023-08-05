@@ -13,8 +13,7 @@ use kube::{
     Client, CustomResource,
 };
 use async_trait::async_trait;
-
-
+use super::resources;
 use crate::resources::resources::Resource;
 use k8s_openapi::api::core::v1 as core_v1;
 
@@ -26,6 +25,8 @@ use k8s_openapi::api::core::v1 as core_v1;
 pub struct VrrpSpec {
     #[garde(skip)]
     pub interface_selector: InterfaceSelector,
+    #[garde(skip)]
+    pub instance_parent: Option<resources::Parent>,
     #[garde(skip)]
     pub group: u8,
     #[garde(skip)]

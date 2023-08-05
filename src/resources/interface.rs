@@ -40,7 +40,10 @@ pub struct InterfaceSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mac: Option<String>,
     #[garde(skip)]
-    pub instance_parent: resources::Parent,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instance_parent: Option<resources::Parent>,
+    #[garde(skip)]
+    pub managed: bool,
 
 }
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]

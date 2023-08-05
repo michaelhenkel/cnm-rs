@@ -178,16 +178,27 @@ fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionRespon
             "Interface" => {
                 info!("Interface: {}", obj.data);
                 if let Some(spec) = obj.data.get("spec"){
-                    let interface_spec = serde_json::from_value::<interface::InterfaceSpec>(spec.clone())?;
-                    labels.insert("cnm.juniper.net~1instanceType", interface_spec.instance_parent.parent_type.to_string());
+                    let spec = serde_json::from_value::<interface::InterfaceSpec>(spec.clone())?;
+                    match spec.instance_parent{
+                        Some(instance_parent) => {
+                            labels.insert("cnm.juniper.net~1instanceType", instance_parent.parent_type.to_string());
+                        },
+                        None => {}
+                    }
+                    labels.insert("cnm.juniper.net~1managed", spec.managed.to_string());
                 }
             },
             "InterfaceGroup" => {
                 info!("InterfaceGroup: {}", obj.data);
                 if let Some(spec) = obj.data.get("spec"){
-                    let interface_group_spec = serde_json::from_value::<interface_group::InterfaceGroupSpec>(spec.clone())?;
-                    labels.insert("cnm.juniper.net~1instanceType", interface_group_spec.interface_template.instance_parent.parent_type.to_string());
-                    labels.insert("cnm.juniper.net~1instanceSelector", interface_group_spec.interface_template.instance_parent.reference.name.as_ref().unwrap().clone());
+                    let spec = serde_json::from_value::<interface_group::InterfaceGroupSpec>(spec.clone())?;
+                    match spec.interface_template.instance_parent{
+                        Some(instance_parent) => {
+                            labels.insert("cnm.juniper.net~1instanceSelector", instance_parent.reference.name.as_ref().unwrap().clone());
+                            labels.insert("cnm.juniper.net~1instanceType", instance_parent.parent_type.to_string());
+                        },
+                        None => {}
+                    }
                 }
             },
             "VrrpGroup" => {

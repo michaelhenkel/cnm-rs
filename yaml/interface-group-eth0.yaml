@@ -1,12 +1,13 @@
 apiVersion: cnm.juniper.net/v1
 kind: InterfaceGroup
 metadata:
-  name: eth0
+  name: ig1-eth0
 spec:
   interfaceSelector:
     list:
     - eth0
   interfaceTemplate:
+    managed: true
     instanceParent:
       reference:
         name: crpd1
