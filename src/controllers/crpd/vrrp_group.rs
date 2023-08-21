@@ -1,7 +1,7 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
 
 use crate::controllers::controllers;
-use crate::resources::interface::Interface;
+use crate::resources::interface::{Interface, InterfaceFamily};
 use crate::resources::interface_group::InterfaceGroup;
 use crate::resources::ip_address::{IpAddress, IpAddressSpec, IpFamily};
 use crate::resources::pool::Pool;
@@ -111,9 +111,17 @@ impl VrrpGroupController{
                             } else {
                                 return Err(ReconcileError(anyhow::anyhow!("local interface not found")));
                             };
-                            vrrp_spec.unicast = Some(vrrp::VrrpUnicast { 
+                            if let Some(families) = local_interface.spec.families{
+                                families.iter().map(|family| {
+                                    match family{
+                                        InterfaceFamily::Inet(interface_inet) => {},
+                                        InterfaceFamily::Inet6(interface_inet6) => {},
+                                    };
+                                });
+                            }
+                            //vrrp_spec.unicast = Some(vrrp::VrrpUnicast { 
                                 
-                            });
+                            //});
                             let mut vrrp = vrrp::Vrrp::new(instance_name, vrrp_spec);
                             vrrp.metadata.namespace = Some(namespace.clone());
                             vrrp.metadata.labels = Some(BTreeMap::from([

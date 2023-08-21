@@ -14,7 +14,7 @@ use kube::{
     Client, CustomResource,
 };
 use async_trait::async_trait;
-
+use k8s_openapi::api::core::v1 as core_v1;
 
 use crate::resources::resources::Resource;
 
@@ -43,8 +43,10 @@ pub struct InterfaceSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_parent: Option<resources::Parent>,
     #[garde(skip)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vrrp: Option<Vrrp>,
+    #[garde(skip)]
     pub managed: bool,
-
 }
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -90,8 +92,90 @@ pub struct InterfaceInet6{
 }
 
 
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Vrrp{
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priority: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fast_interval: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track: Option<Track>,
+    pub virtual_address: VirtualAddress,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unicast: Option<VrrpUnicast>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v4_subnet_filter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v6_subnet_filter: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Track{
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interface: Option<Vec<TrackInterface>>,
+    pub notify_master: String,
+    pub notify_backup: String,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackInterface{
+    pub interface: String,
+    pub weight_cost: u8,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VirtualAddress{
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v4_address: Option<VirtualAddressAdress>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v6_address: Option<VirtualAddressAdress>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_name: Option<String>,
+}
+
+impl Default for VirtualAddress{
+    fn default() -> Self{
+        VirtualAddress{
+            v4_address: None,
+            v6_address: None,
+            device_name: None,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum VirtualAddressAdress{
+    Address(String),
+    PoolReference(core_v1::LocalObjectReference),
+}
+
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VrrpUnicast{
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_v4_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_v6_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_v4_list: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_v6_list: Option<Vec<String>>,
+}
+
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
-pub struct InterfaceStatus {}
+#[serde(rename_all = "camelCase")]
+pub struct InterfaceStatus {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vrrp: Option<Vrrp>,
+}
 
 pub struct InterfaceResource{
     client: Client,

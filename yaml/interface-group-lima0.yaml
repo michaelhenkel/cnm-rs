@@ -1,14 +1,17 @@
 apiVersion: cnm.juniper.net/v1
 kind: InterfaceGroup
 metadata:
-  name: ig1-eth0
+  name: ig1-lima0
 spec:
-  interfaceSelector:
-    list:
-    - eth0
+  interfaceName: lima0
   interfaceTemplate:
     managed: true
     instanceParent:
       reference:
         name: crpd1
       parentType: Crpd
+    vrrp:
+      virtualAddress:
+        v4Address:
+          poolReference:
+            name: loopback-pool

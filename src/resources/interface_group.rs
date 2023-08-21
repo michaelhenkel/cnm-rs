@@ -27,22 +27,9 @@ use k8s_openapi::api::core::v1 as core_v1;
 pub struct InterfaceGroupSpec {
     #[schemars(length(min = 1))]
     #[garde(skip)]
-    pub interface_selector: InterfaceSelector,
+    pub interface_name: String,
     #[garde(skip)]
     pub interface_template: InterfaceSpec,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub enum InterfaceSelector{
-    All(bool),
-    List(Vec<String>)
-}
-
-impl Default for InterfaceSelector{
-    fn default() -> Self{
-        InterfaceSelector::All(true)
-    }
 }
 
 
@@ -51,6 +38,7 @@ impl Default for InterfaceSelector{
 pub struct InterfaceGroupStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interface_references: Option<Vec<core_v1::LocalObjectReference>>,
+    pub available_interfaces: u8,
 }
 
 pub struct InterfaceGroupResource{
