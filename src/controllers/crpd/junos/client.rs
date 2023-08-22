@@ -6,6 +6,7 @@ use tonic::metadata::MetadataMap;
 use tracing::info;
 use super::common;
 use tracing::warn;
+use serde_xml_rs;
 
 pub struct Client {
     client: junos_mgmt::management_client::ManagementClient<tonic::transport::Channel>,
@@ -53,10 +54,27 @@ impl Client{
         })
     }
     pub async fn set(&mut self, config: common::Root) -> anyhow::Result<()>{
-        let mut request = junos_mgmt::ConfigSetRequest::default();
+        //let xml_config = serde_xml_rs::to_string(&config)?;
+        //info!("committing xmk config:\n{}", xml_config.clone());
         let json_config = serde_json::to_string(&config)?;
-        request.config = Some(junos_mgmt::config_set_request::Config::JsonConfig(json_config));
-        self.client.config_set(request).await?;
+        let json_value: serde_json::Value = serde_json::from_str(&json_config)?;
+        let xml_config = serde_xml_rs::to_string(&json_value)?;
+        let config_set_request = junos_mgmt::ConfigSetRequest{
+            load_type: junos_mgmt::ConfigLoadType::ConfigLoadMerge.into(),
+            commit: Some(junos_mgmt::ConfigCommit { 
+                r#type: junos_mgmt::ConfigCommitType::ConfigCommit.into(),
+                comment: "test".to_string() 
+            }),
+            config: Some(junos_mgmt::config_set_request::Config::XmlConfig(xml_config)),
+        };
+        let mut request = Request::new(config_set_request);
+        request.metadata_mut().insert("client-id", "cnm".parse().unwrap());
+        info!("committing config:\n{}", serde_json::to_string_pretty(&config)?);
+        let commit_response = match self.client.config_set(request).await{
+            Ok(res) => res,
+            Err(e) => return Err(e.into())
+        };
+        info!("commit response: {:#?}", commit_response.into_inner());
         Ok(())
     }
     pub async fn get(&mut self) -> anyhow::Result<Option<String>>{

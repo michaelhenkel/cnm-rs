@@ -115,13 +115,13 @@ impl JunosConfigurationController{
                                     }
 
                                     if junos_interfaces.len() > 0 {
-                                        root_configuration.configuration.interfaces = Some(junos_interfaces);
+                                        root_configuration.configuration.interfaces = Some(common::Interface{
+                                            interface: Some(junos_interfaces)
+                                        });
                                     }
-
-                                    println!("{}", serde_json::to_string_pretty(&root_configuration).unwrap());
                     
                                     match junos::client::Client::new(
-                                        pod_ip,
+                                        pod_ip.clone(),
                                         pod_name.clone(),
                                         ctx.key.as_ref().unwrap().clone(),
                                         ctx.ca.as_ref().unwrap().clone(),
@@ -130,6 +130,24 @@ impl JunosConfigurationController{
                                         Ok(mut junos_client) => {
                                             if let Err(e) = junos_client.set(root_configuration).await{
                                                 return Err(ReconcileError(e.into()))
+                                            }
+                                        },
+                                        Err(e) => return Err(ReconcileError(e.into()))
+                                    }
+
+                                    match junos::client::Client::new(
+                                        pod_ip,
+                                        pod_name.clone(),
+                                        ctx.key.as_ref().unwrap().clone(),
+                                        ctx.ca.as_ref().unwrap().clone(),
+                                        ctx.cert.as_ref().unwrap().clone()
+                                    ).await{
+                                        Ok(mut junos_client) => {
+                                            match junos_client.get().await{
+                                                Ok(config) => {
+                                                    info!("JUNOS config: {:#?}", config);
+                                                },
+                                                Err(e) => return Err(ReconcileError(e.into()))
                                             }
                                         },
                                         Err(e) => return Err(ReconcileError(e.into()))

@@ -40,7 +40,12 @@ pub struct Root{
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct Configuration{
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub interfaces: Option<Vec<interface::Interface>>
+    pub interfaces: Option<Interface>
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
+pub struct Interface{
+    pub interface: Option<Vec<interface::Interface>>
 }
 
 
