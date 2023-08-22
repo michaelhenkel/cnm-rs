@@ -3,6 +3,10 @@ use crate::controllers::controllers;
 use crate::cert;
 use crate::controllers::crpd::junos;
 use crate::resources::bgp_router::BgpRouter;
+use crate::resources::crpd::crpd;
+use crate::resources::interface;
+use super::junos::common;
+use crate::resources::resources::InstanceType;
 use kube::Resource;
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -13,7 +17,7 @@ use kube::{
         watcher::Config,
     },
 };
-
+use kube_runtime::reflector::ObjectRef;
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
@@ -24,7 +28,7 @@ use k8s_openapi::ByteString;
 
 pub struct JunosConfigurationController{
     context: Arc<Context>,
-    resource: Api<BgpRouter>,
+    resource: Api<crpd::Crpd>,
 }
 
 impl JunosConfigurationController{
@@ -33,46 +37,113 @@ impl JunosConfigurationController{
         let context = context.clone();
         JunosConfigurationController{context, resource}
     }
-    async fn reconcile(g: Arc<BgpRouter>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
-        match controllers::get::<BgpRouter>(
-            g.meta().namespace.as_ref().unwrap(),
-            g.meta().name.as_ref().unwrap(),
+    async fn reconcile(g: Arc<crpd::Crpd>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
+        let namespace = g.meta().namespace.as_ref().unwrap();
+        let name = g.meta().name.as_ref().unwrap();
+        match controllers::get::<crpd::Crpd>(
+            namespace,
+            name,
             ctx.client.clone())
             .await{
             Ok(res) => {
                 match res{
-                    Some((bgp_router, _)) => {
-                        info!("junos config controller reconciles bgprouter config");
-                        if let Some(address) = &bgp_router.spec.v4_address{
-                            let mut pod_name = None;
-                            bgp_router.meta().owner_references.as_ref().unwrap().iter().for_each(|owner: &meta_v1::OwnerReference| {
-                                info!("owner: {:#?}", owner);
-                                if owner.kind == "Pod"{
-                                    pod_name = Some(owner.name.clone())
-                                }
-                            });
-                            match junos::client::Client::new(
-                                address.clone(),
-                                pod_name.as_ref().unwrap().clone(),
-                                ctx.key.as_ref().unwrap().clone(),
-                                ctx.ca.as_ref().unwrap().clone(),
-                                ctx.cert.as_ref().unwrap().clone()).await{
-                                Ok(mut client) => {
-                                    match client.get().await{
-                                        Ok(config) => {
-                                            info!("JUNOS config: {:#?}", config);
-                                        },
-                                        Err(e) => { return Err(ReconcileError(e.into()))}
+                    Some((crpd, _)) => {
+
+
+                        
+                        let interface_list = match controllers::list::<interface::Interface>(namespace, ctx.client.clone(), Some(BTreeMap::from([(
+                            "cnm.juniper.net/instanceSelector".to_string(), name.clone()
+                        )]))).await{
+                            Ok(res) => {
+                                if let Some((interface_list,_)) = res {
+                                    if interface_list.items.len() > 0 {
+                                        Some(interface_list)
+                                    } else {
+                                        None
                                     }
-                                },
-                                Err(e) => {
-                                    return Err(ReconcileError(e.into()))
-                                },
+                                } else {
+                                    None
+                                }
+                            },
+                            Err(e) => return Err(e)
+                        };
+
+                        if let Some(status) = crpd.status{
+                            if let Some(instances) = status.instances{
+                                for (instance_name, instance) in &instances{
+
+
+                                    let (pod_name, pod_ip) = match controllers::get::<core_v1::Pod>(namespace, instance_name, ctx.client.clone()).await{
+                                        Ok(res) => {
+                                            if let Some((pod,_)) = res {
+                                                if let Some(status) = pod.status{
+                                                    if let Some(pod_ip) = status.pod_ip{
+                                                        (instance_name, pod_ip)
+                                                    } else {
+                                                        return Err(ReconcileError(anyhow::anyhow!("pod ip not found")))
+                                                    }
+                                                } else {
+                                                    return Err(ReconcileError(anyhow::anyhow!("pod status not found")))
+                                                }
+                                            } else {
+                                                return Err(ReconcileError(anyhow::anyhow!("pod not found")))
+                                            }
+                                        },
+                                        Err(e) => return Err(e)
+                                    };
+
+                                    let mut root_configuration = common::Root{
+                                        configuration: common::Configuration{
+                                            interfaces: None,
+                                        },
+                                    };
+                                    let mut junos_interfaces = Vec::new();
+
+                                    if let Some(interface_list) = &interface_list{
+                                        for interface in interface_list{
+                                            if let Some(owner_references) = &interface.meta().owner_references{
+                                                for owner_reference in owner_references{
+                                                    if owner_reference.kind == "Pod".to_string(){
+                                                        if instance_name.clone() == owner_reference.name{                                                         
+                                                            let junos_interface = junos::interface::Interface::from(interface);
+                                                            junos_interfaces.push(junos_interface);   
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if junos_interfaces.len() > 0 {
+                                        root_configuration.configuration.interfaces = Some(junos_interfaces);
+                                    }
+
+                                    println!("{}", serde_json::to_string_pretty(&root_configuration).unwrap());
+                    
+                                    match junos::client::Client::new(
+                                        pod_ip,
+                                        pod_name.clone(),
+                                        ctx.key.as_ref().unwrap().clone(),
+                                        ctx.ca.as_ref().unwrap().clone(),
+                                        ctx.cert.as_ref().unwrap().clone()
+                                    ).await{
+                                        Ok(mut junos_client) => {
+                                            if let Err(e) = junos_client.set(root_configuration).await{
+                                                return Err(ReconcileError(e.into()))
+                                            }
+                                        },
+                                        Err(e) => return Err(ReconcileError(e.into()))
+                                    }
+
+
+
+                                }
                             }
                         }
-                        if let Some(_status) = bgp_router.status{
-                            
-                        }
+
+
+
+
                     },
                     None => {}
                 }
@@ -83,7 +154,7 @@ impl JunosConfigurationController{
         }
         Ok(Action::await_change())
     }
-    fn error_policy(_g: Arc<BgpRouter>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
+    fn error_policy(_g: Arc<crpd::Crpd>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
         warn!("reconcile failed: {:?}", error);
         Action::requeue(Duration::from_secs(5))
     }
@@ -92,10 +163,10 @@ impl JunosConfigurationController{
 #[async_trait]
 impl Controller for JunosConfigurationController{
     async fn run(&self) -> anyhow::Result<()>{
-        let reconcile = |g: Arc<BgpRouter>, ctx: Arc<Context>| {
+        let reconcile = |g: Arc<crpd::Crpd>, ctx: Arc<Context>| {
             async move { JunosConfigurationController::reconcile(g, ctx).await }
         };
-        let error_policy = |g: Arc<BgpRouter>, error: &ReconcileError, ctx: Arc<Context>| {
+        let error_policy = |g: Arc<crpd::Crpd>, error: &ReconcileError, ctx: Arc<Context>| {
             JunosConfigurationController::error_policy(g, error, ctx)
         };
         
@@ -197,12 +268,27 @@ impl Controller for JunosConfigurationController{
         new_context.address = Some(self.context.address.as_ref().unwrap().clone());
 
 
-        let mut config = Config::default();
-        config.label_selector = Some("
-            cnm.juniper.net/bgpRouterManaged=true,
-            cnm.juniper.net/instanceType=Crpd
-        ".to_string());
+        let config = Config::default();
         runtime_controller::new(self.resource.clone(), config)
+            .watches(
+                Api::<interface::Interface>::all(self.context.client.clone()),
+                Config::default(),
+                |obj| {
+                    info!("interface event in bgp_router_group controller:");
+                    if let Some(labels) = &obj.meta().labels{
+                        if let Some(instance_type) = labels.get("cnm.juniper.net/instanceType"){
+                            if instance_type.clone() == InstanceType::Crpd.to_string(){
+                                if let Some(instance) = labels.get("cnm.juniper.net/instanceSelector"){
+                                    return Some(ObjectRef::<crpd::Crpd>::new(instance)
+                                    .within(obj.meta().namespace.as_ref().unwrap()));
+                                }
+                            }
+
+                        }
+                    }
+                    None
+                }
+            )
             .run(reconcile, error_policy, Arc::new(new_context))
             .for_each(|res| async move {
                 match res {
@@ -214,3 +300,24 @@ impl Controller for JunosConfigurationController{
         Ok(())
     }
 }
+
+/*
+match junos::client::Client::new(
+                                address.clone(),
+                                pod_name.as_ref().unwrap().clone(),
+                                ctx.key.as_ref().unwrap().clone(),
+                                ctx.ca.as_ref().unwrap().clone(),
+                                ctx.cert.as_ref().unwrap().clone()).await{
+                                Ok(mut client) => {
+                                    match client.get().await{
+                                        Ok(config) => {
+                                            info!("JUNOS config: {:#?}", config);
+                                        },
+                                        Err(e) => { return Err(ReconcileError(e.into()))}
+                                    }
+                                },
+                                Err(e) => {
+                                    return Err(ReconcileError(e.into()))
+                                },
+                            }
+*/

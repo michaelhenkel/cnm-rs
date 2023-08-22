@@ -4,7 +4,7 @@ use tonic::transport::{Certificate, Channel, ClientTlsConfig};
 use tonic::Request;
 use tonic::metadata::MetadataMap;
 use tracing::info;
-use super::bgp;
+use super::common;
 use tracing::warn;
 
 pub struct Client {
@@ -52,7 +52,7 @@ impl Client{
             client,
         })
     }
-    pub async fn set(&mut self, config: bgp::Configuration) -> anyhow::Result<()>{
+    pub async fn set(&mut self, config: common::Root) -> anyhow::Result<()>{
         let mut request = junos_mgmt::ConfigSetRequest::default();
         let json_config = serde_json::to_string(&config)?;
         request.config = Some(junos_mgmt::config_set_request::Config::JsonConfig(json_config));
