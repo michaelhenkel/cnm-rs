@@ -28,8 +28,7 @@ use super::resources;
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
 pub struct InterfaceSpec {
     #[garde(skip)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
+    pub name: String,
     #[garde(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mtu: Option<u16>,

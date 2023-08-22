@@ -113,7 +113,7 @@ impl InterfaceGroupController{
                                 if interface_families.len() > 0 {
                                     interface_spec.families = Some(interface_families);
                                 }
-                                interface_spec.name = Some(instance_interface_name.clone());
+                                interface_spec.name = instance_interface_name.clone();
                                 interface_spec.mac = Some(instance_interface.mac.clone());
                                 let interface_name = format!("{}-{}", instance_name, instance_interface_name);
                                 let mut interface = Interface::new(interface_name.as_str(), interface_spec);

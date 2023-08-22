@@ -59,6 +59,7 @@ impl Client{
         let json_config = serde_json::to_string(&config)?;
         let json_value: serde_json::Value = serde_json::from_str(&json_config)?;
         let xml_config = serde_xml_rs::to_string(&json_value)?;
+        info!("committing xml config:\n{}", xml_config);
         let config_set_request = junos_mgmt::ConfigSetRequest{
             load_type: junos_mgmt::ConfigLoadType::ConfigLoadMerge.into(),
             commit: Some(junos_mgmt::ConfigCommit { 
@@ -69,7 +70,7 @@ impl Client{
         };
         let mut request = Request::new(config_set_request);
         request.metadata_mut().insert("client-id", "cnm".parse().unwrap());
-        info!("committing config:\n{}", serde_json::to_string_pretty(&config)?);
+        
         let commit_response = match self.client.config_set(request).await{
             Ok(res) => res,
             Err(e) => return Err(e.into())

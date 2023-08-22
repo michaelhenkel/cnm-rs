@@ -134,27 +134,6 @@ impl JunosConfigurationController{
                                         },
                                         Err(e) => return Err(ReconcileError(e.into()))
                                     }
-
-                                    match junos::client::Client::new(
-                                        pod_ip,
-                                        pod_name.clone(),
-                                        ctx.key.as_ref().unwrap().clone(),
-                                        ctx.ca.as_ref().unwrap().clone(),
-                                        ctx.cert.as_ref().unwrap().clone()
-                                    ).await{
-                                        Ok(mut junos_client) => {
-                                            match junos_client.get().await{
-                                                Ok(config) => {
-                                                    info!("JUNOS config: {:#?}", config);
-                                                },
-                                                Err(e) => return Err(ReconcileError(e.into()))
-                                            }
-                                        },
-                                        Err(e) => return Err(ReconcileError(e.into()))
-                                    }
-
-
-
                                 }
                             }
                         }

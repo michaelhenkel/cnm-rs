@@ -5,6 +5,7 @@ metadata:
 spec:
   interfaceName: lima0
   interfaceTemplate:
+    name: lima0
     managed: true
     instanceParent:
       reference:

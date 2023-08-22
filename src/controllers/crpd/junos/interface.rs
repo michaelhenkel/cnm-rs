@@ -113,9 +113,7 @@ pub struct Unit {
 impl From<&interface::Interface> for Interface{
     fn from(interface: &interface::Interface) -> Self {
         let mut intf = Interface::default();
-        if let Some(name) = &interface.spec.name{
-            intf.name = name.clone();
-        }
+        intf.name = interface.spec.name.clone();
         if let Some(mtu) = interface.spec.mtu{
             intf.mtu = Some(mtu as u32);
         }
@@ -142,11 +140,11 @@ impl From<&interface::Interface> for Interface{
                             let mut vrrp_group = VrrpGroup::default();
 
                             if let Some(vrrp) = vrrp_status{
-                                configure_vrrp_v4(vrrp, &mut vrrp_group);
+                                configure_vrrp_v4(vrrp, &interface.spec.name, &mut vrrp_group);
                                 address.vrrp_group = Some(vec![vrrp_group.clone()]);
                             }
                             if let Some(vrrp) = vrrp_spec{
-                                configure_vrrp_v4(vrrp, &mut vrrp_group);
+                                configure_vrrp_v4(vrrp, &interface.spec.name,&mut vrrp_group);
                                 address.vrrp_group = Some(vec![vrrp_group]);
                             }
                         }
@@ -171,7 +169,7 @@ impl From<&interface::Interface> for Interface{
     }
 }
 
-fn configure_vrrp_v4<'a>(interface_vrrp: &'a interface::Vrrp, vrrp_group: &'a mut VrrpGroup) -> &'a mut VrrpGroup{
+fn configure_vrrp_v4<'a>(interface_vrrp: &'a interface::Vrrp, interface_name: &str, vrrp_group: &'a mut VrrpGroup) -> &'a mut VrrpGroup{
     if let Some(fast_interval) = interface_vrrp.fast_interval{
         vrrp_group.fast_interval = Some(fast_interval as u32);
     }
@@ -206,6 +204,8 @@ fn configure_vrrp_v4<'a>(interface_vrrp: &'a interface::Vrrp, vrrp_group: &'a mu
                 let mut vrrp_address = VirtualAddress::default();
                 if let Some(device_name) = &interface_vrrp.virtual_address.device_name{
                     vrrp_address.device_name = Some(device_name.clone());
+                } else {
+                    vrrp_address.device_name = Some(interface_name.to_string());
                 }
                 vrrp_address.name = address.clone();
                 vrrp_group.virtual_address = Some(vec![vrrp_address]);
