@@ -1,4 +1,5 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
+use crate::resources::resources::InstanceType;
 use std::f32::consts::E;
 use std::time::Duration;
 use crate::controllers::controllers;
@@ -52,8 +53,33 @@ impl InterfaceGroupController{
         let mut interface_group = match controllers::get::<InterfaceGroup>(namespace,name,ctx.client.clone()).await{
             Ok(res) => {
                 match res{
-                    Some((routing_instance_group, _api)) => {
-                        routing_instance_group
+                    Some((interface_group, api)) => {
+                        if interface_group.meta().deletion_timestamp.is_none(){
+                            if let Err(e) = controllers::add_finalizer(api, name).await {
+                                return Err(e)
+                            }
+                        } else if interface_group.meta().deletion_timestamp.is_some() {
+                            match controllers::list::<Interface>(namespace, ctx.client.clone(), Some(BTreeMap::from([
+                                ("cnm.juniper.net/instanceSelector".to_string(), name.clone()),
+                                ("cnm.juniper.net/instanceType".to_string(), InstanceType::Crpd.to_string())
+                            ]))).await{
+                                Ok(res) => {
+                                    if let Some((interface_list, _)) = res {
+                                        for interface in &interface_list{
+                                            if let Err(e) = controllers::delete::<interface::Interface>(namespace.to_string(), interface.meta().name.as_ref().unwrap().clone(), ctx.client.clone()).await{
+                                                return Err(e);
+                                            } 
+                                        }
+                                    }
+                                },
+                                Err(e) => return Err(e)
+                            }
+                            if let Err(e) = controllers::del_finalizer(api, name).await {
+                                return Err(e)
+                            }
+                            return Ok(Action::await_change())
+                        }
+                        interface_group
                     },
                     None => return Ok(Action::await_change())
                 }
@@ -123,7 +149,14 @@ impl InterfaceGroupController{
                                     ("cnm.juniper.net/interfaceGroup".to_string(), name.clone()),
                                     ("cnm.juniper.net/instanceType".to_string(), resources::InstanceType::Crpd.to_string()),
                                 ]));
-                                interface.metadata.owner_references = Some(vec![owner_reference]);
+                                let interface_group_owner_reference = meta_v1::OwnerReference{
+                                    name: name.to_string(),
+                                    api_version: "cnm.juniper.net/v1".to_string(),
+                                    kind: "InterfaceGroup".to_string(),
+                                    uid: interface_group.meta().uid.as_ref().unwrap().clone(),
+                                    ..Default::default()
+                                };
+                                interface.metadata.owner_references = Some(vec![owner_reference, interface_group_owner_reference]);
                                 match controllers::create_or_update(interface.clone(), ctx.client.clone()).await{
                                     Ok(interface) => {
                                         if let Some(interface) = interface{
@@ -211,29 +244,39 @@ impl InterfaceGroupController{
                                 }
                                 let mut unicast: Option<interface::VrrpUnicast> = None;
                                 if let Some(local_v4_address) = found_local_v4_address{
+                                    let local_v4_address_prefix: Vec<&str> = local_v4_address.split("/").collect();
+                                    let peer_v4_address_prefixes: Vec<String> = peer_v4_addresses.iter().map(|peer_address| {
+                                        let peer_v4_address: Vec<&str> = peer_address.split("/").collect();
+                                        peer_v4_address[0].to_string()
+                                    }).collect();
                                     if unicast.is_none(){
                                         unicast = Some(interface::VrrpUnicast{
-                                            local_v4_address: Some(local_v4_address),
-                                            peer_v4_list: Some(peer_v4_addresses),
+                                            local_v4_address: Some(local_v4_address_prefix[0].to_string()),
+                                            peer_v4_list: Some(peer_v4_address_prefixes),
                                             local_v6_address: None,
                                             peer_v6_list: None,
                                         })
                                     } else {
-                                        unicast.as_mut().unwrap().local_v4_address = Some(local_v4_address);
-                                        unicast.as_mut().unwrap().peer_v4_list = Some(peer_v4_addresses);
+                                        unicast.as_mut().unwrap().local_v4_address = Some(local_v4_address_prefix[0].to_string());
+                                        unicast.as_mut().unwrap().peer_v4_list = Some(peer_v4_address_prefixes);
                                     }
                                 }
                                 if let Some(local_v6_address) = found_local_v6_address{
+                                    let local_v6_address_prefix: Vec<&str> = local_v6_address.split("/").collect();
+                                    let peer_v6_address_prefixes: Vec<String> = peer_v6_addresses.iter().map(|peer_address| {
+                                        let peer_v6_address: Vec<&str> = peer_address.split("/").collect();
+                                        peer_v6_address[0].to_string()
+                                    }).collect();
                                     if unicast.is_none(){
                                         unicast = Some(interface::VrrpUnicast{
                                             local_v4_address: None,
                                             peer_v4_list: None,
-                                            local_v6_address: Some(local_v6_address),
-                                            peer_v6_list: Some(peer_v6_addresses),
+                                            local_v6_address: Some(local_v6_address_prefix[0].to_string()),
+                                            peer_v6_list: Some(peer_v6_address_prefixes),
                                         })
                                     } else {
-                                        unicast.as_mut().unwrap().local_v6_address = Some(local_v6_address);
-                                        unicast.as_mut().unwrap().peer_v6_list = Some(peer_v6_addresses);
+                                        unicast.as_mut().unwrap().local_v6_address = Some(local_v6_address_prefix[0].to_string());
+                                        unicast.as_mut().unwrap().peer_v6_list = Some(peer_v6_address_prefixes);
                                     }
                                 }
 
@@ -328,7 +371,8 @@ impl InterfaceGroupController{
             }
         }
         match controllers::list::<Interface>(namespace, ctx.client.clone(), Some(BTreeMap::from([
-            ("cnm.juniper.net/bgpRouterGroup".to_string(), name.clone())
+            ("cnm.juniper.net/instanceSelector".to_string(), name.clone()),
+            ("cnm.juniper.net/instanceType".to_string(), InstanceType::Crpd.to_string())
         ]))).await{
             Ok(res) => {
                 if let Some((child_list,_)) = res {
