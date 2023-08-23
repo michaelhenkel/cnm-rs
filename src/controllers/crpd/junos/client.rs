@@ -53,15 +53,13 @@ impl Client{
             client,
         })
     }
-    pub async fn set(&mut self, config: common::Root) -> anyhow::Result<()>{
-        //let xml_config = serde_xml_rs::to_string(&config)?;
-        //info!("committing xmk config:\n{}", xml_config.clone());
+    pub async fn set(&mut self, config: common::Root, config_load_type: junos_mgmt::ConfigLoadType) -> anyhow::Result<()>{
         let json_config = serde_json::to_string(&config)?;
         let json_value: serde_json::Value = serde_json::from_str(&json_config)?;
         let xml_config = serde_xml_rs::to_string(&json_value)?;
         info!("committing xml config:\n{}", xml_config);
         let config_set_request = junos_mgmt::ConfigSetRequest{
-            load_type: junos_mgmt::ConfigLoadType::ConfigLoadMerge.into(),
+            load_type: config_load_type.into(),
             commit: Some(junos_mgmt::ConfigCommit { 
                 r#type: junos_mgmt::ConfigCommitType::ConfigCommit.into(),
                 comment: "test".to_string() 

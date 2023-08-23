@@ -2,6 +2,7 @@ use crate::controllers::controllers::{Controller, Context, ReconcileError};
 use crate::controllers::controllers;
 use crate::cert;
 use crate::controllers::crpd::junos;
+use crate::controllers::crpd::junos::proto::jnx::jet::management as junos_mgmt;
 use crate::resources::bgp_router::BgpRouter;
 use crate::resources::crpd::crpd;
 use crate::resources::interface;
@@ -17,6 +18,7 @@ use kube::{
         watcher::Config,
     },
 };
+use serde_json;
 use kube_runtime::reflector::ObjectRef;
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -92,11 +94,39 @@ impl JunosConfigurationController{
                                         Err(e) => return Err(e)
                                     };
 
-                                    let mut root_configuration = common::Root{
-                                        configuration: common::Configuration{
-                                            interfaces: None,
+
+                                    let current_config = match junos::client::Client::new(
+                                        pod_ip.clone(),
+                                        pod_name.clone(),
+                                        ctx.key.as_ref().unwrap().clone(),
+                                        ctx.ca.as_ref().unwrap().clone(),
+                                        ctx.cert.as_ref().unwrap().clone()
+                                    ).await{
+                                        Ok(mut junos_client) => {
+                                            match junos_client.get().await{
+                                                Ok(config) => {
+                                                    if let Some(config) = config{
+                                                        config
+                                                    } else {
+                                                        return Err(ReconcileError(anyhow::anyhow!("config not found")))
+                                                    }
+                                                },
+                                                Err(e) => return Err(ReconcileError(e.into()))
+                                            }
                                         },
+                                        Err(e) => return Err(ReconcileError(e.into()))
                                     };
+
+                                    let mut root_configuration: junos::common::Root = match serde_json::from_str(&current_config){
+                                        Ok(res) => { res },
+                                        Err(e) => return Err(ReconcileError(e.into()))
+                                    };
+/*
+                                    let mut root_configuration = common::Root{
+                                        configuration: junos_configuration,
+                                    };
+
+*/
                                     let mut junos_interfaces = Vec::new();
 
                                     if let Some(interface_list) = &interface_list{
@@ -114,11 +144,11 @@ impl JunosConfigurationController{
                                         }
                                     }
 
-                                    if junos_interfaces.len() > 0 {
-                                        root_configuration.configuration.interfaces = Some(common::Interface{
-                                            interface: Some(junos_interfaces)
-                                        });
-                                    }
+                                    //if junos_interfaces.len() > 0 {
+                                    root_configuration.configuration.interfaces = Some(common::Interface{
+                                        interface: Some(junos_interfaces)
+                                    });
+                                    //}
                     
                                     match junos::client::Client::new(
                                         pod_ip.clone(),
@@ -128,7 +158,7 @@ impl JunosConfigurationController{
                                         ctx.cert.as_ref().unwrap().clone()
                                     ).await{
                                         Ok(mut junos_client) => {
-                                            if let Err(e) = junos_client.set(root_configuration).await{
+                                            if let Err(e) = junos_client.set(root_configuration, junos_mgmt::ConfigLoadType::ConfigLoadOverride).await{
                                                 return Err(ReconcileError(e.into()))
                                             }
                                         },

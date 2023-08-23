@@ -278,6 +278,44 @@ system {
                         port 50052;
                         local-certificate grpc;
                     }
+                }  
+            }
+            traceoptions {
+                file jsd;
+                flag all;
+            }
+        }
+    }
+}
+security {
+    certificates {
+        local {
+            grpc {
+                "KEY";
+            }
+        }
+    }
+}
+"#;
+
+/*
+const BASE_CONFIG: &str = r#"
+system {
+    root-authentication {
+        encrypted-password "PASSWORD";
+    }
+    services {
+        ssh {
+            root-login allow;
+            port 24;
+        }
+        extension-service {
+            request-response {
+                grpc {
+                    ssl {
+                        port 50052;
+                        local-certificate grpc;
+                    }
                     skip-authentication;
                 }  
             }
@@ -301,6 +339,7 @@ security {
     }
 }
 "#;
+*/
 
 // read a file and put all lines into a single line separated by \n
 fn read_file(path: &str) -> Result<String, std::io::Error> {
