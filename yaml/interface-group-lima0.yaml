@@ -11,8 +11,8 @@ spec:
       reference:
         name: crpd1
       parentType: Crpd
-    vrrp:
-      virtualAddress:
-        v4Address:
-          poolReference:
-            name: loopback-pool
+#    vrrp:
+#      virtualAddress:
+#        v4Address:
+#          poolReference:
+#            name: loopback-pool

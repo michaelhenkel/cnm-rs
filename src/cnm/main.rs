@@ -2,6 +2,7 @@ use cnm_rs::controllers::controllers::Context;
 use cnm_rs::resources;
 use cnm_rs::controllers::{
     crpd::crpd::CrpdController,
+    crpd::crpd_group::CrpdGroupController,
     bgp_router::BgpRouterController,
     crpd::bgp_router_group::BgpRouterGroupController,
     crpd::junos_configuration::JunosConfigurationController,
@@ -170,6 +171,7 @@ async fn main() -> anyhow::Result<()> {
 
     let resource_list: Vec<Box<dyn resources::resources::Resource>> = vec![
         Box::new(resources::crpd::crpd::CrpdResource::new(client.clone())),
+        Box::new(resources::crpd::crpd_group::CrpdGroupResource::new(client.clone())),
         Box::new(resources::bgp_router::BgpRouterResource::new(client.clone())),
         Box::new(resources::bgp_router_group::BgpRouterGroupResource::new(client.clone())),
         Box::new(resources::routing_instance::RoutingInstanceResource::new(client.clone())),
@@ -185,6 +187,7 @@ async fn main() -> anyhow::Result<()> {
 
     let controller_list: Vec<Box<dyn controllers::Controller>> = vec![
         Box::new(CrpdController::new(ctx.clone())),
+        Box::new(CrpdGroupController::new(ctx.clone())),
         Box::new(BgpRouterController::new(ctx.clone())),
         Box::new(BgpRouterGroupController::new(ctx.clone())),
         Box::new(JunosConfigurationController::new(ctx.clone())),

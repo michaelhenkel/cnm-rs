@@ -15,26 +15,43 @@ use k8s_openapi::api::apps::v1 as apps_v1;
 use k8s_openapi::api::core::v1 as core_v1;
 use crate::resources::resources::Resource;
 
+use super::crpd::CrpdSpec;
+
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
-#[kube(group = "cnm.juniper.net", version = "v1", kind = "Crpd", namespaced)]
-#[kube(status = "CrpdStatus")]
+#[kube(group = "cnm.juniper.net", version = "v1", kind = "CrpdGroup", namespaced)]
+#[kube(status = "CrpdGroupStatus")]
 #[serde(rename_all = "camelCase")]
 //#[kube(printcolumn = r#"{"name":"Team", "jsonPath": ".spec.metadata.team", "type": "string"}"#)]
-pub struct CrpdSpec {
+pub struct CrpdGroupSpec {
     #[garde(skip)]
-    pub image: String,
+    pub replicas: i32,
     #[garde(skip)]
-    pub init_image: String,
-    #[garde(skip)]
-    pub setup_interfaces: bool,
-
+    pub crpd_template: CrpdSpec,
 }
 
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct CrpdStatus {
+pub struct CrpdGroupStatus {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stateful_set: Option<apps_v1::StatefulSetStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crpd_references: Option<Vec<core_v1::LocalObjectReference>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bgp_router_group_references: Option<Vec<core_v1::LocalObjectReference>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interface_group_references: Option<Vec<core_v1::LocalObjectReference>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vrrp_group_references: Option<Vec<core_v1::LocalObjectReference>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_instance_group_references: Option<Vec<core_v1::LocalObjectReference>>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Instance{
     pub interfaces: BTreeMap<String,Interface>,
+    pub uuid: String,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema, PartialEq)]
@@ -47,7 +64,7 @@ pub struct Interface{
     pub mac: String
 }
 
-pub struct CrpdResource{
+pub struct CrpdGroupResource{
     client: Client,
     name: String,
     group: String,
@@ -55,12 +72,12 @@ pub struct CrpdResource{
 }
 
 
-impl CrpdResource{
+impl CrpdGroupResource{
     pub fn new(client: Client) -> Self{
-        let name = "crpds".to_string();
+        let name = "crpdgroups".to_string();
         let group = "cnm.juniper.net".to_string();
         let version = "v1".to_string();
-        CrpdResource{
+        CrpdGroupResource{
             client,
             name,
             group,
@@ -70,7 +87,7 @@ impl CrpdResource{
 }
 
 #[async_trait]
-impl Resource for CrpdResource{
+impl Resource for CrpdGroupResource{
     fn client(&self) -> Client{
         self.client.clone()
     }
@@ -85,7 +102,7 @@ impl Resource for CrpdResource{
     }
     async fn create(&self) -> anyhow::Result<()>{
         let crds: Api<CustomResourceDefinition> = Api::all(self.client.clone());
-        let crd = Crpd::crd();
+        let crd = CrpdGroup::crd();
         info!("Creating CRD: {}",self.name);
         let pp = PostParams::default();
         match crds.create(&pp, &crd).await {

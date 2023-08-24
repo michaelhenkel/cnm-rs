@@ -1,4 +1,5 @@
 pub mod crpd;
+pub mod crpd_group;
 pub mod bgp_router_group;
 pub mod routing_instance_group;
 pub mod interface_group;

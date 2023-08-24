@@ -27,22 +27,29 @@ pub struct VrrpSpec {
     pub interface_selector: InterfaceSelector,
     #[garde(skip)]
     pub instance_parent: Option<resources::Parent>,
-    #[garde(skip)]
-    pub group: u8,
-    #[garde(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[garde(skip)]
+    pub group: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[garde(skip)]
     pub priority: Option<u8>,
-    #[garde(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[garde(skip)]
     pub fast_interval: Option<u8>,
-    #[garde(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[garde(skip)]
     pub track: Option<Track>,
     #[garde(skip)]
     pub virtual_address: VirtualAddress,
-    #[garde(skip)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[garde(skip)]
     pub unicast: Option<VrrpUnicast>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[garde(skip)]
+    pub v4_subnet_filter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[garde(skip)]
+    pub v6_subnet_filter: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
@@ -72,9 +79,22 @@ pub struct TrackInterface{
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VirtualAddress{
-    pub address: VirtualAddressAdress,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v4_address: Option<VirtualAddressAdress>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v6_address: Option<VirtualAddressAdress>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device_name: Option<String>,
+}
+
+impl Default for VirtualAddress{
+    fn default() -> Self{
+        VirtualAddress{
+            v4_address: None,
+            v6_address: None,
+            device_name: None,
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
@@ -88,16 +108,22 @@ pub enum VirtualAddressAdress{
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VrrpUnicast{
-    pub local_address: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub peer_address: Option<Vec<String>>,
+    pub local_v4_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_v6_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_v4_list: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_v6_list: Option<Vec<String>>,
 }
 
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VrrpStatus {
-    pub virtual_address: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vrrp: Option<VrrpSpec>,
 }
 
 pub struct VrrpResource{

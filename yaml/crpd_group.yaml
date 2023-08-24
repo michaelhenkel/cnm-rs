@@ -1,0 +1,12 @@
+apiVersion: cnm.juniper.net/v1
+kind: CrpdGroup
+metadata:
+  name: crpd1
+  labels:
+    name: crpd1
+spec:
+  replicas: 1
+  crpdTemplate:
+    image: registry.default.svc.cluster.local:5000/crpd:23.2R1.13
+    initImage: registry.default.svc.cluster.local:5000/crpd-init
+    setupInterfaces: false

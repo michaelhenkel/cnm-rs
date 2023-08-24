@@ -4,7 +4,10 @@ use std::f32::consts::E;
 use std::time::Duration;
 use crate::controllers::controllers;
 use crate::resources::interface::{Interface, InterfaceFamily, Vrrp, self, InterfaceStatus, VirtualAddress};
-use crate::resources::crpd::crpd::Crpd;
+use crate::resources::crpd::{
+    crpd::Crpd,
+    crpd_group::CrpdGroup,
+};
 use crate::resources::crpd::crpd;
 use crate::resources::ip_address;
 use crate::resources::pool;
@@ -88,7 +91,7 @@ impl InterfaceGroupController{
         };
         if let Some(instance_parent) = &g.spec.interface_template.instance_parent{
             if let Some(instance_parent_name) = &instance_parent.reference.name{
-                let crpd = match controllers::get::<Crpd>(namespace,instance_parent_name,ctx.client.clone()).await{
+                let crpd_group = match controllers::get::<CrpdGroup>(namespace,instance_parent_name,ctx.client.clone()).await{
                     Ok(res) => {
                         match res{
                             Some((crpd, _api)) => crpd,
@@ -97,273 +100,73 @@ impl InterfaceGroupController{
                     },
                     Err(e) => return Err(e)
                 };
-                if let Some(status) = &crpd.status{
-                    if let Some(instance_map) = &status.instances{
-                        let mut all_instance_interface_map = BTreeMap::new();
-                        for (instance_name, instance) in instance_map{
-                            let instance_interface_name = interface_group.spec.interface_name.clone();
-                            if let Some(instance_interface) = instance.interfaces.get(&instance_interface_name){
-                                let owner_reference = match controllers::get::<core_v1::Pod>(namespace, instance_name, ctx.client.clone()).await{
-                                    Ok(res) => {
-                                        match res{
-                                            Some((pod, _)) => {
-                                                meta_v1::OwnerReference{
-                                                    api_version: "v1".to_string(),
-                                                    kind: "Pod".to_string(),
-                                                    name: pod.meta().name.as_ref().unwrap().clone(),
-                                                    uid: pod.meta().uid.as_ref().unwrap().clone(),
-                                                    ..Default::default()
-                                                }
-                                            },
-                                            None => return Err(ReconcileError(anyhow::anyhow!("pod not found"))) 
-                                        }
-                                    },
-                                    Err(e) => return Err(e)
-                                };
-                                let mut interface_spec = interface_group.spec.interface_template.clone(); 
-                                let mut interface_families = Vec::new();
-                                if let Some(v4) = &instance_interface.v4_address{
-                                    interface_families.push(interface::InterfaceFamily::Inet(
-                                        interface::InterfaceInet{
-                                            address: v4.clone(),
-                                        }
-                                    ));
-                                }
-                                if let Some(v6) = &instance_interface.v6_address{
-                                    interface_families.push(interface::InterfaceFamily::Inet6(
-                                        interface::InterfaceInet6{
-                                            address: v6.clone(),
-                                        }
-                                    ));
-                                }
-                                if interface_families.len() > 0 {
-                                    interface_spec.families = Some(interface_families);
-                                }
-                                interface_spec.name = instance_interface_name.clone();
-                                interface_spec.mac = Some(instance_interface.mac.clone());
-                                let interface_name = format!("{}-{}", instance_name, instance_interface_name);
-                                let mut interface = Interface::new(interface_name.as_str(), interface_spec);
-                                interface.metadata.namespace = Some(namespace.clone());
-                                interface.metadata.labels = Some(BTreeMap::from([
-                                    ("cnm.juniper.net/instanceSelector".to_string(), crpd.meta().name.as_ref().unwrap().clone()),
-                                    ("cnm.juniper.net/interfaceGroup".to_string(), name.clone()),
-                                    ("cnm.juniper.net/instanceType".to_string(), resources::InstanceType::Crpd.to_string()),
-                                ]));
-                                let interface_group_owner_reference = meta_v1::OwnerReference{
-                                    name: name.to_string(),
-                                    api_version: "cnm.juniper.net/v1".to_string(),
-                                    kind: "InterfaceGroup".to_string(),
-                                    uid: interface_group.meta().uid.as_ref().unwrap().clone(),
-                                    ..Default::default()
-                                };
-                                interface.metadata.owner_references = Some(vec![owner_reference, interface_group_owner_reference]);
-                                match controllers::create_or_update(interface.clone(), ctx.client.clone()).await{
-                                    Ok(interface) => {
-                                        if let Some(interface) = interface{
-                                            all_instance_interface_map.insert(instance_name.clone(), interface.clone());
-                                        }
-                                    },
-                                    Err(e) => return Err(e)
-                                }
-                            }
-                        }
-                        let all_instance_interface_map_clone = all_instance_interface_map.clone();
-                        for (instance_name, interface) in all_instance_interface_map.iter_mut(){
-                            if interface.status.is_none(){
-                                interface.status = Some(InterfaceStatus::default());
-                            }
-                            let mut peer_v4_addresses = Vec::new();
-                            let mut peer_v6_addresses = Vec::new();
-                            let mut local_v4_addresses = Vec::new();
-                            let mut local_v6_addresses = Vec::new();
-                            for (peer_instance_name, peer_interface) in &all_instance_interface_map_clone{
-                                if peer_instance_name != instance_name{
-                                    if let Some(families) = &peer_interface.spec.families{
-                                        for family in families{
-                                            match family{
-                                                InterfaceFamily::Inet(inet) => {
-                                                    peer_v4_addresses.push(inet.address.clone());
-                                                },
-                                                InterfaceFamily::Inet6(inet6) => {
-                                                    peer_v6_addresses.push(inet6.address.clone());
-                                                }
-                                            }
-                                        }
-                                    }
-                                }else if let Some(families) = &interface.spec.families{
-                                    for family in families{
-                                        match family{
-                                            InterfaceFamily::Inet(inet) => {
-                                                local_v4_addresses.push(inet.address.clone());
-                                            },
-                                            InterfaceFamily::Inet6(inet6) => {
-                                                local_v6_addresses.push(inet6.address.clone());
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if let Some(vrrp) = interface.spec.vrrp.as_mut(){
-                                let mut found_local_v4_address = None;
-                                let mut found_peer_v4_addresses = Vec::new();
-                                let mut found_local_v6_address = None;
-                                let mut found_peer_v6_addresses = Vec::new();
-                                for local_v4_address in &local_v4_addresses{
-                                    let local_v4_subnet = ipnet::Ipv4Net::from_str(local_v4_address).unwrap().network();
-                                    if let Some(filter) = &vrrp.v4_subnet_filter{
-                                        let filter_subnet = ipnet::Ipv4Net::from_str(filter.as_str()).unwrap().network();
-                                        if filter_subnet != local_v4_subnet {
-                                            continue;
-                                        }
-                                    }
-                                    for peer_v4_address in &peer_v4_addresses{
-                                        let peer_v4_subnet = ipnet::Ipv4Net::from_str(peer_v4_address).unwrap().network();
-                                        if peer_v4_subnet == local_v4_subnet {
-                                            found_local_v4_address = Some(local_v4_address.clone());
-                                            found_peer_v4_addresses.push(peer_v4_address.clone());
-                                            break;
-                                        }
-                                    }
-                                }
-                                for local_v6_address in &local_v6_addresses{
-                                    let local_v6_subnet = ipnet::Ipv6Net::from_str(local_v6_address).unwrap().network();
-                                    for peer_v6_address in &peer_v6_addresses{
-                                        let peer_v6_subnet = ipnet::Ipv6Net::from_str(peer_v6_address).unwrap().network();
-                                        if let Some(filter) = &vrrp.v6_subnet_filter{
-                                            let filter_subnet = ipnet::Ipv6Net::from_str(filter.as_str()).unwrap().network();
-                                            if filter_subnet != local_v6_subnet {
-                                                continue;
-                                            }
-                                        }
-                                        if peer_v6_subnet == local_v6_subnet {
-                                            found_local_v6_address = Some(local_v6_address.clone());
-                                            found_peer_v6_addresses.push(peer_v6_address.clone());
-                                            break;
-                                        }
-                                    }
-                                }
-                                let mut unicast: Option<interface::VrrpUnicast> = None;
-                                if let Some(local_v4_address) = found_local_v4_address{
-                                    let local_v4_address_prefix: Vec<&str> = local_v4_address.split("/").collect();
-                                    let peer_v4_address_prefixes: Vec<String> = peer_v4_addresses.iter().map(|peer_address| {
-                                        let peer_v4_address: Vec<&str> = peer_address.split("/").collect();
-                                        peer_v4_address[0].to_string()
-                                    }).collect();
-                                    if unicast.is_none(){
-                                        unicast = Some(interface::VrrpUnicast{
-                                            local_v4_address: Some(local_v4_address_prefix[0].to_string()),
-                                            peer_v4_list: Some(peer_v4_address_prefixes),
-                                            local_v6_address: None,
-                                            peer_v6_list: None,
-                                        })
-                                    } else {
-                                        unicast.as_mut().unwrap().local_v4_address = Some(local_v4_address_prefix[0].to_string());
-                                        unicast.as_mut().unwrap().peer_v4_list = Some(peer_v4_address_prefixes);
-                                    }
-                                }
-                                if let Some(local_v6_address) = found_local_v6_address{
-                                    let local_v6_address_prefix: Vec<&str> = local_v6_address.split("/").collect();
-                                    let peer_v6_address_prefixes: Vec<String> = peer_v6_addresses.iter().map(|peer_address| {
-                                        let peer_v6_address: Vec<&str> = peer_address.split("/").collect();
-                                        peer_v6_address[0].to_string()
-                                    }).collect();
-                                    if unicast.is_none(){
-                                        unicast = Some(interface::VrrpUnicast{
-                                            local_v4_address: None,
-                                            peer_v4_list: None,
-                                            local_v6_address: Some(local_v6_address_prefix[0].to_string()),
-                                            peer_v6_list: Some(peer_v6_address_prefixes),
-                                        })
-                                    } else {
-                                        unicast.as_mut().unwrap().local_v6_address = Some(local_v6_address_prefix[0].to_string());
-                                        unicast.as_mut().unwrap().peer_v6_list = Some(peer_v6_address_prefixes);
-                                    }
-                                }
 
-                                let virtual_address = if let Some(v4_vip) = &vrrp.virtual_address.v4_address{
-                                    match v4_vip{
-                                        interface::VirtualAddressAdress::Address(address) => {
-                                            Some(interface::VirtualAddressAdress::Address(address.clone()))
-                                        },
-                                        interface::VirtualAddressAdress::PoolReference(pool_ref) => {
-                                            let ip_address = match controllers::list::<ip_address::IpAddress>(namespace, ctx.client.clone(), Some(BTreeMap::from([(
-                                                "cnm.juniper.net/pool".to_string(),pool_ref.name.as_ref().unwrap().clone() 
-                                            )]))).await{
-                                                Ok(res) => {
-                                                    match res{
-                                                        Some((ip_address_list,_)) => {
-                                                            let mut found_ip_address = None;
-                                                            for ip_address in &ip_address_list{
-                                                                let ip_address_name = ip_address.meta().name.as_ref().unwrap();
-                                                                let vrrp_virtual_address_name = format!("{}-virtual-address", name);
-                                                                if ip_address_name.to_string() == vrrp_virtual_address_name{
-                                                                    found_ip_address = Some(ip_address.clone());
-                                                                    break;
+                if let Some(status) = &crpd_group.status{
+                    if let Some(crpd_references) = &status.crpd_references{
+                        for crpd_reference in crpd_references{
+                            match controllers::get::<Crpd>(namespace, crpd_reference.name.as_ref().unwrap(), ctx.client.clone()).await{
+                                Ok(res) => {
+                                    if let Some((crpd,_)) = res {
+                                        let crpd_name = crpd.meta().name.as_ref().unwrap();
+                                        let instance_interface_name = interface_group.spec.interface_name.clone();
+                                        if let Some(crpd_staus) = &crpd.status{
+                                            if let Some(instance_interface) = crpd_staus.interfaces.get(&instance_interface_name){
+                                                let owner_reference = match controllers::get::<core_v1::Pod>(namespace, crpd_name, ctx.client.clone()).await{
+                                                    Ok(res) => {
+                                                        match res{
+                                                            Some((pod, _)) => {
+                                                                meta_v1::OwnerReference{
+                                                                    api_version: "v1".to_string(),
+                                                                    kind: "Pod".to_string(),
+                                                                    name: pod.meta().name.as_ref().unwrap().clone(),
+                                                                    uid: pod.meta().uid.as_ref().unwrap().clone(),
+                                                                    ..Default::default()
                                                                 }
-                                                            }
-                                                            found_ip_address
-                                                        },
-                                                        None => None
-                                                    }
-                                                },
-                                                Err(e) => return Err(e)
-                                            };
-                                            match ip_address{
-                                                Some(ip_address) => {
-                                                    match ip_address.status{
-                                                        Some(status) => {
-                                                            if !status.address.is_empty(){
-                                                                Some(interface::VirtualAddressAdress::Address(status.address.clone()))
-                                                            } else {
-                                                                return Ok(Action::requeue(Duration::from_secs(1)));
-                                                            }
-                                                        },
-                                                        None => return Err(ReconcileError(anyhow::anyhow!("ip address not found")))
-                                                    }
-                                                },
-                                                None => {
-                                                    match controllers::get::<pool::Pool>(namespace, pool_ref.name.as_ref().unwrap(), ctx.client.clone()).await{
-                                                        Ok(res) => {
-                                                            match res{
-                                                                Some((_pool, _)) => {
-                                                                    let ip_address_spec = ip_address::IpAddressSpec{
-                                                                        pool: pool_ref.clone(),
-                                                                        family: ip_address::IpFamily::V4,
-                                                                    };
-                                                                    let mut ip_address = ip_address::IpAddress::new(format!("{}-virtual-address", name).as_str(), ip_address_spec);
-                                                                    ip_address.metadata.namespace = Some(namespace.clone());
-                                                                    if let Err(e) = controllers::create(Arc::new(ip_address), ctx.client.clone()).await{
-                                                                        return Err(e);
-                                                                    }
-                                                                    return Ok(Action::requeue(Duration::from_secs(1)));
-                                                                },
-                                                                None => return Err(ReconcileError(anyhow::anyhow!("pool not found")))
-                                                            }
-                                                        },
-                                                        Err(e) => return Err(e)
-                                                    }
-                                                },
+                                                            },
+                                                            None => return Err(ReconcileError(anyhow::anyhow!("pod not found"))) 
+                                                        }
+                                                    },
+                                                    Err(e) => return Err(e)
+                                                };
+                                                let mut interface_spec = interface_group.spec.interface_template.clone(); 
+                                                let mut interface_families = Vec::new();
+                                                if let Some(v4) = &instance_interface.v4_address{
+                                                    interface_families.push(interface::InterfaceFamily::Inet(
+                                                        interface::InterfaceInet{
+                                                            address: v4.clone(),
+                                                        }
+                                                    ));
+                                                }
+                                                if let Some(v6) = &instance_interface.v6_address{
+                                                    interface_families.push(interface::InterfaceFamily::Inet6(
+                                                        interface::InterfaceInet6{
+                                                            address: v6.clone(),
+                                                        }
+                                                    ));
+                                                }
+                                                if interface_families.len() > 0 {
+                                                    interface_spec.families = Some(interface_families);
+                                                }
+                                                interface_spec.name = instance_interface_name.clone();
+                                                interface_spec.mac = Some(instance_interface.mac.clone());
+                                                let interface_name = format!("{}-{}", crpd_name, instance_interface_name);
+                                                let mut interface = Interface::new(interface_name.as_str(), interface_spec);
+                                                interface.metadata.namespace = Some(namespace.clone());
+                                                interface.metadata.labels = Some(BTreeMap::from([
+                                                    ("cnm.juniper.net/instanceSelector".to_string(), crpd.meta().name.as_ref().unwrap().clone()),
+                                                    ("cnm.juniper.net/interfaceGroup".to_string(), name.clone()),
+                                                    ("cnm.juniper.net/instanceType".to_string(), resources::InstanceType::Crpd.to_string()),
+                                                ]));
+                                                interface.metadata.owner_references = Some(vec![owner_reference]);
+                                                if let Err(e) = controllers::create_or_update(interface.clone(), ctx.client.clone()).await{
+                                                    return Err(e)
+                                                }
                                             }
                                         }
-                                    }
-                                } else {
-                                    None
-                                };
-                                if virtual_address.is_some() || unicast.is_some(){
-                                    let mut vrrp_status = Vrrp::default();
-                                    if let Some(virtual_address) = virtual_address{
-                                        vrrp_status.virtual_address = VirtualAddress{
-                                            v4_address: Some(virtual_address),
-                                            ..Default::default()
-                                        };
-                                    }
-                                    vrrp_status.unicast = unicast;
-                                    interface.status.as_mut().unwrap().vrrp = Some(vrrp_status);
-                                    if let Err(e) = controllers::update_status(interface.clone(), ctx.client.clone()).await{
-                                        return Err(e)
-                                    }
 
-                                }
+                                    }
+                                },
+                                Err(e) => return Err(e)
                             }
                         }
                     }
@@ -417,7 +220,7 @@ impl Controller for InterfaceGroupController{
         };
         runtime_controller::new(self.resource.clone(), Config::default())
             .watches(
-                Api::<Crpd>::all(self.context.client.clone()),
+                Api::<CrpdGroup>::all(self.context.client.clone()),
                 Config::default(),
                 |crpd| {
                     info!("crpd event in routing_instance_group controller:");

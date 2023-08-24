@@ -50,9 +50,6 @@ impl JunosConfigurationController{
             Ok(res) => {
                 match res{
                     Some((crpd, _)) => {
-
-
-                        
                         let interface_list = match controllers::list::<interface::Interface>(namespace, ctx.client.clone(), Some(BTreeMap::from([(
                             "cnm.juniper.net/instanceSelector".to_string(), name.clone()
                         )]))).await{
@@ -69,108 +66,87 @@ impl JunosConfigurationController{
                             },
                             Err(e) => return Err(e)
                         };
-
-                        if let Some(status) = crpd.status{
-                            if let Some(instances) = status.instances{
-                                for (instance_name, instance) in &instances{
-
-
-                                    let (pod_name, pod_ip) = match controllers::get::<core_v1::Pod>(namespace, instance_name, ctx.client.clone()).await{
-                                        Ok(res) => {
-                                            if let Some((pod,_)) = res {
-                                                if let Some(status) = pod.status{
-                                                    if let Some(pod_ip) = status.pod_ip{
-                                                        (instance_name, pod_ip)
-                                                    } else {
-                                                        return Err(ReconcileError(anyhow::anyhow!("pod ip not found")))
-                                                    }
-                                                } else {
-                                                    return Err(ReconcileError(anyhow::anyhow!("pod status not found")))
-                                                }
-                                            } else {
-                                                return Err(ReconcileError(anyhow::anyhow!("pod not found")))
-                                            }
-                                        },
-                                        Err(e) => return Err(e)
-                                    };
+                        let crpd_name = crpd.meta().name.as_ref().unwrap();
+                        let (pod_name, pod_ip) = match controllers::get::<core_v1::Pod>(namespace, crpd_name, ctx.client.clone()).await{
+                            Ok(res) => {
+                                if let Some((pod,_)) = res {
+                                    if let Some(status) = pod.status{
+                                        if let Some(pod_ip) = status.pod_ip{
+                                            (crpd_name, pod_ip)
+                                        } else {
+                                            return Err(ReconcileError(anyhow::anyhow!("pod ip not found")))
+                                        }
+                                    } else {
+                                        return Err(ReconcileError(anyhow::anyhow!("pod status not found")))
+                                    }
+                                } else {
+                                    return Err(ReconcileError(anyhow::anyhow!("pod not found")))
+                                }
+                            },
+                            Err(e) => return Err(e)
+                        };
 
 
-                                    let current_config = match junos::client::Client::new(
-                                        pod_ip.clone(),
-                                        pod_name.clone(),
-                                        ctx.key.as_ref().unwrap().clone(),
-                                        ctx.ca.as_ref().unwrap().clone(),
-                                        ctx.cert.as_ref().unwrap().clone()
-                                    ).await{
-                                        Ok(mut junos_client) => {
-                                            match junos_client.get().await{
-                                                Ok(config) => {
-                                                    if let Some(config) = config{
-                                                        config
-                                                    } else {
-                                                        return Err(ReconcileError(anyhow::anyhow!("config not found")))
-                                                    }
-                                                },
-                                                Err(e) => return Err(ReconcileError(e.into()))
-                                            }
-                                        },
-                                        Err(e) => return Err(ReconcileError(e.into()))
-                                    };
+                        let current_config = match junos::client::Client::new(
+                            pod_ip.clone(),
+                            pod_name.clone(),
+                            ctx.key.as_ref().unwrap().clone(),
+                            ctx.ca.as_ref().unwrap().clone(),
+                            ctx.cert.as_ref().unwrap().clone()
+                        ).await{
+                            Ok(mut junos_client) => {
+                                match junos_client.get().await{
+                                    Ok(config) => {
+                                        if let Some(config) = config{
+                                            config
+                                        } else {
+                                            return Err(ReconcileError(anyhow::anyhow!("config not found")))
+                                        }
+                                    },
+                                    Err(e) => return Err(ReconcileError(e.into()))
+                                }
+                            },
+                            Err(e) => return Err(ReconcileError(e.into()))
+                        };
 
-                                    let mut root_configuration: junos::common::Root = match serde_json::from_str(&current_config){
-                                        Ok(res) => { res },
-                                        Err(e) => return Err(ReconcileError(e.into()))
-                                    };
-/*
-                                    let mut root_configuration = common::Root{
-                                        configuration: junos_configuration,
-                                    };
+                        let mut root_configuration: junos::common::Root = match serde_json::from_str(&current_config){
+                            Ok(res) => { res },
+                            Err(e) => return Err(ReconcileError(e.into()))
+                        };
+                        let mut junos_interfaces = Vec::new();
 
-*/
-                                    let mut junos_interfaces = Vec::new();
-
-                                    if let Some(interface_list) = &interface_list{
-                                        for interface in interface_list{
-                                            if let Some(owner_references) = &interface.meta().owner_references{
-                                                for owner_reference in owner_references{
-                                                    if owner_reference.kind == "Pod".to_string(){
-                                                        if instance_name.clone() == owner_reference.name{                                                         
-                                                            let junos_interface = junos::interface::Interface::from(interface);
-                                                            junos_interfaces.push(junos_interface);   
-                                                        }
-                                                    }
-                                                }
+                        if let Some(interface_list) = &interface_list{
+                            for interface in interface_list{
+                                if let Some(owner_references) = &interface.meta().owner_references{
+                                    for owner_reference in owner_references{
+                                        if owner_reference.kind == "Pod".to_string(){
+                                            if crpd_name.clone() == owner_reference.name{                                                         
+                                                let junos_interface = junos::interface::Interface::from(interface);
+                                                junos_interfaces.push(junos_interface);   
                                             }
                                         }
-                                    }
-
-                                    //if junos_interfaces.len() > 0 {
-                                    root_configuration.configuration.interfaces = Some(common::Interface{
-                                        interface: Some(junos_interfaces)
-                                    });
-                                    //}
-                    
-                                    match junos::client::Client::new(
-                                        pod_ip.clone(),
-                                        pod_name.clone(),
-                                        ctx.key.as_ref().unwrap().clone(),
-                                        ctx.ca.as_ref().unwrap().clone(),
-                                        ctx.cert.as_ref().unwrap().clone()
-                                    ).await{
-                                        Ok(mut junos_client) => {
-                                            if let Err(e) = junos_client.set(root_configuration, junos_mgmt::ConfigLoadType::ConfigLoadOverride).await{
-                                                return Err(ReconcileError(e.into()))
-                                            }
-                                        },
-                                        Err(e) => return Err(ReconcileError(e.into()))
                                     }
                                 }
                             }
                         }
 
-
-
-
+                        root_configuration.configuration.interfaces = Some(common::Interface{
+                            interface: Some(junos_interfaces)
+                        });
+                        match junos::client::Client::new(
+                            pod_ip.clone(),
+                            pod_name.clone(),
+                            ctx.key.as_ref().unwrap().clone(),
+                            ctx.ca.as_ref().unwrap().clone(),
+                            ctx.cert.as_ref().unwrap().clone()
+                        ).await{
+                            Ok(mut junos_client) => {
+                                if let Err(e) = junos_client.set(root_configuration, junos_mgmt::ConfigLoadType::ConfigLoadOverride).await{
+                                    return Err(ReconcileError(e.into()))
+                                }
+                            },
+                            Err(e) => return Err(ReconcileError(e.into()))
+                        }
                     },
                     None => {}
                 }

@@ -5,8 +5,7 @@ use cnm_rs::{
     controllers::controllers, 
     resources::crpd::crpd::{
         Crpd,
-        Instance,
-        Interface
+        Interface, CrpdStatus
     },
 };
 use k8s_openapi::{
@@ -178,14 +177,8 @@ pub async fn main() -> anyhow::Result<()> {
         }
 
     }
-    let instance = Instance{
-        //name: pod_name.clone(),
-        uuid: pod_uuid.clone(),
-        interfaces: instance_interfaces,
-    };
 
-
-    let mut crpd = match controllers::get::<Crpd>(&pod_namespace, &crpd_group, client.clone()).await{
+    let mut crpd = match controllers::get::<Crpd>(&pod_namespace, &pod_name, client.clone()).await{
         Ok(crpd) => {
             match crpd {
                 Some((crpd, _)) => {
@@ -197,18 +190,12 @@ pub async fn main() -> anyhow::Result<()> {
         Err(e) => return Err(e.into())
     };
 
-    if let Some(status) = crpd.status.as_mut(){
-        match status.instances.as_mut(){
-            Some(instances) => {
-                instances.insert(pod_name.clone(), instance.clone());
-            },
-            None => {
-                let mut instances = BTreeMap::new();
-                instances.insert(pod_name.clone(), instance.clone());
-                status.instances = Some(instances);
-            }
-        }
+    if crpd.status.is_none(){
+        crpd.status = Some(CrpdStatus::default());
     }
+
+    crpd.status.as_mut().unwrap().interfaces = instance_interfaces;
+
 
     info!("status: {:#?}", crpd.status);
 
