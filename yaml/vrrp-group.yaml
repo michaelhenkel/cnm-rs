@@ -7,7 +7,7 @@ spec:
     virtualAddress:
       v4Address:
         poolReference:
-          name: loopback-pool
+          name: vrrp-pool
     interfaceSelector:
       interfaceGroupParent:
         name: crpd1-lima0-ig

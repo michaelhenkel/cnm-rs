@@ -25,9 +25,6 @@ pub struct CrpdSpec {
     pub image: String,
     #[garde(skip)]
     pub init_image: String,
-    #[garde(skip)]
-    pub setup_interfaces: bool,
-
 }
 
 

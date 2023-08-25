@@ -7,9 +7,8 @@ metadata:
 spec:
   replicas: 2
   interfaceGroups:
-  - "eth"
-  - "lima"
+  - "^eth"
+  - "^lima"
   crpdTemplate:
     image: registry.default.svc.cluster.local:5000/crpd:23.2R1.13
     initImage: registry.default.svc.cluster.local:5000/crpd-init
-    setupInterfaces: false

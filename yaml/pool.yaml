@@ -1,7 +1,7 @@
 apiVersion: cnm.juniper.net/v1
 kind: Pool
 metadata:
-  name: loopback-pool
+  name: vrrp-pool
 spec:
   poolType:
     v4:
