@@ -1,23 +1,14 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
-
 use crate::controllers::controllers;
-use crate::resources::crpd::crpd::Crpd;
-use crate::resources::crpd::crpd_group::CrpdGroup;
 use crate::resources::interface::{Interface, InterfaceFamily};
-use crate::resources::interface_group::InterfaceGroup;
 use crate::resources::ip_address::{IpAddress, IpAddressSpec, IpFamily};
-use crate::resources::pool::{Pool, self};
-use crate::resources::resources::{Parent, InstanceType};
+use crate::resources::pool::{self};
+use crate::resources::resources::InstanceType;
 use crate::resources::vrrp::{self, InterfaceSelector, VirtualAddress, VirtualAddressAdress, VrrpUnicast, VrrpStatus, Vrrp};
 use crate::resources::vrrp_group::{
     VrrpGroup,
     VrrpGroupStatus
 };
-use crate::resources::{
-    crpd::crpd,
-    resources,
-};
-use garde::rules::ip;
 use kube::core::ObjectList;
 use kube::{Resource, Client};
 use async_trait::async_trait;
@@ -30,9 +21,7 @@ use kube::{
     },
 };
 use kube_runtime::reflector::ObjectRef;
-use std::any;
 use std::collections::{BTreeMap, HashMap};
-use std::f32::consts::E;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -96,7 +85,7 @@ impl VrrpGroupController{
         let namespace = vrrp_group.meta().namespace.as_ref().unwrap().clone();
 
         let interface_group_parent_name = match &vrrp_group.spec.vrrp_template.interface_selector{
-            InterfaceSelector::Device(device) => { None },
+            InterfaceSelector::Device(_device) => { None },
             InterfaceSelector::InterfaceGroupParent(interface_group_parent) => {
                 match controllers::list::<Interface>(namespace.as_str(), ctx.client.clone(), Some(BTreeMap::from([
                     ("cnm.juniper.net/interfaceGroup".to_string(), interface_group_parent.name.as_ref().unwrap().to_string())
@@ -253,7 +242,7 @@ async fn create_update_vrrp(interface_list: ObjectList<Interface>, vrrp_group: &
                                     }
                                 }
                             },
-                            InterfaceFamily::Inet6(inet6) => {},
+                            InterfaceFamily::Inet6(_inet6) => {},
                         }
                     }
                 }

@@ -7,10 +7,8 @@ use crate::resources::bgp_router_group::{
     BgpRouterGroupStatus,
     BgpRouterReference,
 };
-use crate::resources::routing_instance::RoutingInstance;
 use crate::resources::bgp_router::BgpRouter;
 use crate::resources::crpd::crpd::Crpd;
-use crate::resources::routing_instance_group::RoutingInstanceGroup;
 use async_trait::async_trait;
 use futures::StreamExt;
 use kube::{
@@ -20,8 +18,6 @@ use kube::{
         watcher::Config,
     },
 };
-use ring::digest::{Context as ring_context, SHA512};
-use data_encoding::HEXLOWER;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -30,9 +26,6 @@ use kube::runtime::reflector::ObjectRef;
 use kube::Resource;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
 use k8s_openapi::api::core::v1 as core_v1;
-
-use super::junos::bgp;
-
 
 pub struct BgpRouterGroupController{
     context: Arc<Context>,
@@ -215,13 +208,4 @@ impl Controller for BgpRouterGroupController{
             .await;
         Ok(())
     }
-}
-
-fn generate_hash(input: &str) -> String {
-    let mut context = ring_context::new(&SHA512);
-    context.update(input.as_bytes());
-    let digest = context.finish();
-    let hex = HEXLOWER.encode(digest.as_ref());
-    let hash = hex[..8].to_string();
-    hash
 }

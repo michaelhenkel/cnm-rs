@@ -1,15 +1,7 @@
 use crate::controllers::controllers::{
     Controller, Context, ReconcileError, self
 };
-use crate::resources::routing_instance_group::RoutingInstanceGroup;
-use crate::resources::vrrp_group::VrrpGroup;
-use crate::resources::{
-    crpd::crpd::{Crpd, CrpdStatus},
-    crpd::crpd_group::{CrpdGroup, CrpdGroupStatus},
-    bgp_router_group::BgpRouterGroup,
-    interface_group::InterfaceGroup,
-    resources
-};
+use crate::resources::crpd::crpd::Crpd;
 use async_trait::async_trait;
 use futures::StreamExt;
 use kube::{
@@ -17,23 +9,12 @@ use kube::{
     api::Api,
     runtime::{
         controller::{Action, Controller as runtime_controller},
-        watcher::Config,
-        reflector::ObjectRef
+        watcher::Config
     },
 };
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
-use k8s_openapi::{
-    api::{
-        apps::v1 as apps_v1,
-        core::v1 as core_v1,
-        rbac::v1 as rbac_v1,
-    },
-    apimachinery::pkg::apis::meta::v1 as meta_v1,
-};
-
 
 pub struct CrpdController{
     context: Arc<Context>,
@@ -47,15 +28,15 @@ impl CrpdController{
         CrpdController{context, resource}
     }
     async fn reconcile(g: Arc<Crpd>, ctx: Arc<Context>) ->  Result<Action, ReconcileError> {
-        let name = g.meta().name.as_ref().unwrap();
-        let namespace = g.meta().namespace.as_ref().unwrap();
+        let _name = g.meta().name.as_ref().unwrap();
+        let _namespace = g.meta().namespace.as_ref().unwrap();
         match controllers::get::<Crpd>(g.meta().namespace.as_ref().unwrap(),
             g.meta().name.as_ref().unwrap(),
             ctx.client.clone())
             .await{
             Ok(res) => {
                 match res{
-                    Some((mut crpd, _crpd_api)) => {
+                    Some((_crpd, _crpd_api)) => {
                         Ok(Action::await_change())
                     },
                     None => {

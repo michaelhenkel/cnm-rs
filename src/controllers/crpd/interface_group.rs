@@ -1,19 +1,14 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
 use crate::resources::resources::InstanceType;
-use std::f32::consts::E;
 use std::time::Duration;
 use crate::controllers::controllers;
-use crate::resources::interface::{Interface, InterfaceFamily, Vrrp, self, InterfaceStatus, VirtualAddress};
+use crate::resources::interface::{Interface, self};
 use crate::resources::crpd::{
     crpd::Crpd,
     crpd_group::CrpdGroup,
 };
-use crate::resources::crpd::crpd;
-use crate::resources::ip_address;
-use crate::resources::pool;
-use crate::resources::{vrrp, resources, interface_group};
-use crate::resources::vrrp_group::{self, VrrpGroup};
-
+use crate::resources::resources;
+use crate::resources::vrrp_group::VrrpGroup;
 use crate::resources::interface_group::{
     InterfaceGroup,
     InterfaceGroupStatus
@@ -29,15 +24,11 @@ use kube::{
     },
 };
 use kube_runtime::reflector::ObjectRef;
-use std::any;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use tracing::*;
 use k8s_openapi::api::core::v1 as core_v1;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
-use std::str::FromStr;
-use ipnet;
-
 
 pub struct InterfaceGroupController{
     context: Arc<Context>,

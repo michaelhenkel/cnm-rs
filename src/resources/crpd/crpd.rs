@@ -11,8 +11,8 @@ use kube::{
     Client, CustomResource,
 };
 use async_trait::async_trait;
-use k8s_openapi::api::apps::v1 as apps_v1;
-use k8s_openapi::api::core::v1 as core_v1;
+
+
 use crate::resources::resources::Resource;
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]

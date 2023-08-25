@@ -1,9 +1,9 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
-use crate::controllers::{controllers, vrrp};
+use crate::controllers::controllers;
 use crate::cert;
 use crate::controllers::crpd::junos;
 use crate::controllers::crpd::junos::proto::jnx::jet::management as junos_mgmt;
-use crate::resources::bgp_router::BgpRouter;
+
 use crate::resources::crpd::crpd;
 use crate::resources::interface;
 use crate::resources::vrrp::Vrrp;

@@ -1,5 +1,5 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
-use crate::resources::bgp_router::{BgpRouter, BgpRouterStatus, BgpPeeringReference, BgpSessionAttributes};
+use crate::resources::bgp_router::{BgpRouter};
 use crate::resources::bgp_router_group::BgpRouterGroup;
 use crate::controllers::controllers;
 use async_trait::async_trait;
@@ -37,7 +37,7 @@ impl BgpRouterController{
             .await{
             Ok(res) => {
                 match res{
-                    Some((mut bgp_router, _bgp_router_api)) => {},
+                    Some((_bgp_router, _bgp_router_api)) => {},
                     None => {}
                 }
             }

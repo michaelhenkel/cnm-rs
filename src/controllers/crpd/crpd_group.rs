@@ -1,17 +1,16 @@
 use crate::controllers::controllers::{
     Controller, Context, ReconcileError, self
 };
-use crate::controllers::crpd::junos::interface;
-use crate::resources::interface::{InterfaceSpec, Interface};
-use crate::resources::interface_group::InterfaceGroupSpec;
-use crate::resources::resources::Parent;
-use crate::resources::routing_instance_group::RoutingInstanceGroup;
-use crate::resources::vrrp_group::VrrpGroup;
 use crate::resources::{
-    crpd::crpd::{Crpd, CrpdStatus},
+    interface::InterfaceSpec,
+    interface_group::InterfaceGroupSpec,
+    routing_instance_group::RoutingInstanceGroup,
+    vrrp_group::VrrpGroup,
+    crpd::crpd::Crpd,
     crpd::crpd_group::{CrpdGroup, CrpdGroupStatus},
     bgp_router_group::BgpRouterGroup,
     interface_group::InterfaceGroup,
+    resources::Parent,
     resources
 };
 use async_trait::async_trait;
@@ -251,7 +250,7 @@ impl CrpdGroupController{
                                                         }
                                                     }
                                                 },
-                                                Err(e) => return Err(ReconcileError(anyhow::anyhow!("regex error")))
+                                                Err(_e) => return Err(ReconcileError(anyhow::anyhow!("regex error")))
                                             }
                                         }
                                         for matched_interface in &matched_interfaces{
@@ -436,6 +435,23 @@ impl Controller for CrpdGroupController{
             )
             .watches(
                 Api::<VrrpGroup>::all(self.context.client.clone()),
+                Config::default(),
+                |group| {
+                    if let Some(labels) = &group.meta().labels{
+                        if let Some(instance_type) = labels.get("cnm.juniper.net/instanceType"){
+                            if instance_type.contains(&resources::InstanceType::Crpd.to_string()){
+                                if let Some(selector) = labels.get("cnm.juniper.net/instanceSelector"){
+                                    return Some(ObjectRef::<CrpdGroup>::new(selector)
+                                        .within(group.meta().namespace.as_ref().unwrap()));
+                                }
+                            }
+                        }
+                    }
+                    None
+                }
+            )
+            .watches(
+                Api::<apps_v1::StatefulSet>::all(self.context.client.clone()),
                 Config::default(),
                 |group| {
                     if let Some(labels) = &group.meta().labels{

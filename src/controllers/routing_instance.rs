@@ -1,9 +1,8 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
 use crate::controllers::controllers;
-use crate::resources::bgp_router_group::BgpRouterGroup;
+
 use crate::resources::routing_instance::{
-    RoutingInstance,
-    RoutingInstanceStatus
+    RoutingInstance
 };
 use crate::resources::routing_instance_group::RoutingInstanceGroup;
 use kube::Resource;
@@ -17,11 +16,11 @@ use kube::{
     },
 };
 use kube_runtime::reflector::ObjectRef;
-use std::collections::BTreeMap;
+
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
-use k8s_openapi::api::core::v1 as core_v1;
+
 
 pub struct RoutingInstanceController{
     context: Arc<Context>,
@@ -42,7 +41,7 @@ impl RoutingInstanceController{
             .await{
             Ok(res) => {
                 match res{
-                    Some((mut routing_instance, _api)) => {},
+                    Some((_routing_instance, _api)) => {},
                     None => {}
                 }
             },

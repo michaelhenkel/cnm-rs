@@ -33,11 +33,11 @@ pub async fn main() -> anyhow::Result<()> {
         Ok(pod_namespace) => pod_namespace,
         Err(e) => return Err(e.into())
     };
-    let pod_uuid = match std::env::var("POD_UUID"){
+    let _pod_uuid = match std::env::var("POD_UUID"){
         Ok(pod_uuid) => pod_uuid,
         Err(e) => return Err(e.into())
     };
-    let crpd_group = match std::env::var("CRPD_GROUP"){
+    let _crpd_group = match std::env::var("CRPD_GROUP"){
         Ok(crpd_group) => crpd_group,
         Err(e) => return Err(e.into())
     };

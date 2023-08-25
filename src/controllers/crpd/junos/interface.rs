@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
-use crate::resources::{interface, vrrp::{self, VrrpSpec}};
+use crate::resources::{interface, vrrp::{self}};
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Default)]
 pub struct Interface {

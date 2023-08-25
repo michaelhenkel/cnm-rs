@@ -1,13 +1,7 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
-
 use crate::controllers::controllers;
-
-use crate::resources;
-use crate::resources::bgp_router::BgpRouter;
-use crate::resources::bgp_router_group::BgpRouterGroup;
 use crate::resources::routing_instance_group::RoutingInstanceGroupStatus;
-use crate::resources::routing_instance::{RoutingInstance, RoutingInstanceSpec};
-use crate::resources::crpd::crpd::Crpd;
+use crate::resources::routing_instance::RoutingInstance;
 use crate::resources::routing_instance_group::RoutingInstanceGroup;
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -18,17 +12,12 @@ use kube::{
         watcher::Config,
     },
 };
-use ring::digest::{Context as ring_context, SHA512};
-use data_encoding::HEXLOWER;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
-use kube::runtime::reflector::ObjectRef;
 use kube::Resource;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1 as meta_v1;
 use k8s_openapi::api::core::v1 as core_v1;
-
 
 pub struct RoutingInstanceGroupController{
     context: Arc<Context>,
@@ -69,7 +58,7 @@ pub async fn handle_routing_instance_group(routing_instance_group: &mut RoutingI
     let name = routing_instance_group.meta().name.as_ref().unwrap();
     let namespace = routing_instance_group.meta().namespace.as_ref().unwrap();
     if let Some(instance_parent) = &routing_instance_group.spec.routing_instance_template.instance_parent{
-        if let Some(instance_parent_name) = &instance_parent.reference.name{
+        if let Some(_instance_parent_name) = &instance_parent.reference.name{
 
   
         }
@@ -126,13 +115,4 @@ impl Controller for RoutingInstanceGroupController{
             .await;
         Ok(())
     }
-}
-
-fn generate_hash(input: &str) -> String {
-    let mut context = ring_context::new(&SHA512);
-    context.update(input.as_bytes());
-    let digest = context.finish();
-    let hex = HEXLOWER.encode(digest.as_ref());
-    let hash = hex[..8].to_string();
-    hash
 }
