@@ -64,6 +64,7 @@ pub struct Parent{
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 pub enum InstanceType{
     Crpd,
+    CrpdGroup,
     Generic,
     MetalLb,
     Tgw,
@@ -88,6 +89,7 @@ impl Display for InstanceType {
     fn fmt(&self, f: &mut Formatter) -> Result{
         match self {
             InstanceType::Crpd => write!(f, "Crpd"),
+            InstanceType::CrpdGroup => write!(f, "CrpdGroup"),
             InstanceType::Generic => write!(f, "Generic"),
             InstanceType::MetalLb => write!(f, "MetalLb"),
             InstanceType::Tgw => write!(f, "Tgw"),

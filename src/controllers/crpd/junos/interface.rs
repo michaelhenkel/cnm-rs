@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
-use crate::resources::interface;
+use crate::resources::{interface, vrrp::{self, VrrpSpec}};
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Default)]
 pub struct Interface {
@@ -110,6 +110,51 @@ pub struct Unit {
     family: Family,
 }
 
+pub fn create_junos_interface(interface: &interface::Interface, vrrp: Option<vrrp::Vrrp>) -> Interface{
+    let mut intf = Interface::default();
+    intf.name = interface.spec.name.clone();
+    if let Some(mtu) = interface.spec.mtu{
+        intf.mtu = Some(mtu as u32);
+    }
+    let mut unit = Unit::default();
+    unit.name = 0;
+    if let Some(families) = &interface.spec.families{
+        for family in families{
+            match family{
+                interface::InterfaceFamily::Inet(inet) => {
+                    let mut address = Address::default();
+                    address.name = inet.address.clone();
+                    if let Some(vrrp) = &vrrp{
+                        let mut vrrp_group = VrrpGroup::default();
+                        let vrrp_spec = &vrrp.spec;
+                        if let Some(status) = &vrrp.status{
+                            if let Some(vrrp_spec) = &status.vrrp{
+                                configure_vrrp_v4(&vrrp_spec, &interface.spec.name, &mut vrrp_group);
+                                address.vrrp_group = Some(vec![vrrp_group.clone()]);
+                            }
+                        }
+                        configure_vrrp_v4(&vrrp_spec, &interface.spec.name,&mut vrrp_group);
+                        address.vrrp_group = Some(vec![vrrp_group]);
+                    }
+                    let mut family_inet = Inet::default();
+                    family_inet.address = vec![address];
+                    unit.family.inet = Some(family_inet);
+                },
+                interface::InterfaceFamily::Inet6(inet6) => {
+                    let mut address = AddressInet6::default();
+                    address.name = inet6.address.clone();
+                    let mut family_inet6 = Inet6::default();
+                    family_inet6.address = vec![address];
+                    unit.family.inet6 = Some(family_inet6);
+                }
+            }
+        }
+    }
+    intf.unit = Some(vec![unit]);
+
+    intf
+}
+
 impl From<&interface::Interface> for Interface{
     fn from(interface: &interface::Interface) -> Self {
         let mut intf = Interface::default();
@@ -126,29 +171,6 @@ impl From<&interface::Interface> for Interface{
                         
                         let mut address = Address::default();
                         address.name = inet.address.clone();
-
-                        let vrrp_spec = &interface.spec.vrrp;
-
-                        let vrrp_status = if let Some(status) = &interface.status{
-                            &status.vrrp
-                        } else {
-                            &None
-                        };
-
-                        if vrrp_spec.is_some() || vrrp_status.is_some() {
-
-                            let mut vrrp_group = VrrpGroup::default();
-
-                            if let Some(vrrp) = vrrp_status{
-                                configure_vrrp_v4(vrrp, &interface.spec.name, &mut vrrp_group);
-                                address.vrrp_group = Some(vec![vrrp_group.clone()]);
-                            }
-                            if let Some(vrrp) = vrrp_spec{
-                                configure_vrrp_v4(vrrp, &interface.spec.name,&mut vrrp_group);
-                                address.vrrp_group = Some(vec![vrrp_group]);
-                            }
-                        }
-                        
                         let mut family_inet = Inet::default();
                         family_inet.address = vec![address];
                         unit.family.inet = Some(family_inet);
@@ -169,7 +191,7 @@ impl From<&interface::Interface> for Interface{
     }
 }
 
-fn configure_vrrp_v4<'a>(interface_vrrp: &'a interface::Vrrp, interface_name: &str, vrrp_group: &'a mut VrrpGroup) -> &'a mut VrrpGroup{
+pub fn configure_vrrp_v4<'a>(interface_vrrp: &'a vrrp::VrrpSpec, interface_name: &str, vrrp_group: &'a mut VrrpGroup){
     if let Some(fast_interval) = interface_vrrp.fast_interval{
         vrrp_group.fast_interval = Some(fast_interval as u32);
     }
@@ -200,7 +222,7 @@ fn configure_vrrp_v4<'a>(interface_vrrp: &'a interface::Vrrp, interface_name: &s
     if let Some(virtual_address) = &interface_vrrp.virtual_address.v4_address{
         
         match virtual_address{
-            interface::VirtualAddressAdress::Address(address) => {
+            vrrp::VirtualAddressAdress::Address(address) => {
                 let mut vrrp_address = VirtualAddress::default();
                 if let Some(device_name) = &interface_vrrp.virtual_address.device_name{
                     vrrp_address.device_name = Some(device_name.clone());
@@ -233,5 +255,4 @@ fn configure_vrrp_v4<'a>(interface_vrrp: &'a interface::Vrrp, interface_name: &s
         }
         vrrp_group.unicast = Some(vrrp_unicast);
     }
-    vrrp_group
 }

@@ -38,6 +38,8 @@ pub struct InterfaceGroupSpec {
 pub struct InterfaceGroupStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interface_references: Option<Vec<core_v1::LocalObjectReference>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vrrp_group_references: Option<Vec<core_v1::LocalObjectReference>>,
     pub available_interfaces: u8,
 }
 

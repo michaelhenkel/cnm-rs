@@ -1,11 +1,12 @@
 use crate::controllers::controllers::{Controller, Context, ReconcileError};
-use crate::controllers::controllers;
+use crate::controllers::{controllers, vrrp};
 use crate::cert;
 use crate::controllers::crpd::junos;
 use crate::controllers::crpd::junos::proto::jnx::jet::management as junos_mgmt;
 use crate::resources::bgp_router::BgpRouter;
 use crate::resources::crpd::crpd;
 use crate::resources::interface;
+use crate::resources::vrrp::Vrrp;
 use super::junos::common;
 use crate::resources::resources::InstanceType;
 use kube::Resource;
@@ -120,8 +121,20 @@ impl JunosConfigurationController{
                                 if let Some(owner_references) = &interface.meta().owner_references{
                                     for owner_reference in owner_references{
                                         if owner_reference.kind == "Pod".to_string(){
-                                            if crpd_name.clone() == owner_reference.name{                                                         
-                                                let junos_interface = junos::interface::Interface::from(interface);
+                                            if crpd_name.clone() == owner_reference.name{   
+                                                let vrrp = match controllers::get::<Vrrp>(namespace, interface.meta().name.as_ref().unwrap(), ctx.client.clone()).await{
+                                                    Ok(res) => {
+                                                        match res{
+                                                            Some((vrrp,_)) => {
+                                                                Some(vrrp)
+                                                            },
+                                                            None => None
+                                                        }
+                                                    },
+                                                    Err(e) => return Err(e)
+                                                };
+
+                                                let junos_interface = junos::interface::create_junos_interface(interface, vrrp);
                                                 junos_interfaces.push(junos_interface);   
                                             }
                                         }
@@ -292,6 +305,25 @@ impl Controller for JunosConfigurationController{
                     None
                 }
             )
+            .watches(
+                Api::<Vrrp>::all(self.context.client.clone()),
+                Config::default(),
+                |obj| {
+                    info!("vrrp event in junos_config controller:");
+                    if let Some(labels) = &obj.meta().labels{
+                        if let Some(instance_type) = labels.get("cnm.juniper.net/instanceType"){
+                            if instance_type.clone() == InstanceType::Crpd.to_string(){
+                                if let Some(instance) = labels.get("cnm.juniper.net/instanceSelector"){
+                                    return Some(ObjectRef::<crpd::Crpd>::new(instance)
+                                    .within(obj.meta().namespace.as_ref().unwrap()));
+                                }
+                            }
+
+                        }
+                    }
+                    None
+                }
+            )
             .run(reconcile, error_policy, Arc::new(new_context))
             .for_each(|res| async move {
                 match res {
@@ -303,24 +335,3 @@ impl Controller for JunosConfigurationController{
         Ok(())
     }
 }
-
-/*
-match junos::client::Client::new(
-                                address.clone(),
-                                pod_name.as_ref().unwrap().clone(),
-                                ctx.key.as_ref().unwrap().clone(),
-                                ctx.ca.as_ref().unwrap().clone(),
-                                ctx.cert.as_ref().unwrap().clone()).await{
-                                Ok(mut client) => {
-                                    match client.get().await{
-                                        Ok(config) => {
-                                            info!("JUNOS config: {:#?}", config);
-                                        },
-                                        Err(e) => { return Err(ReconcileError(e.into()))}
-                                    }
-                                },
-                                Err(e) => {
-                                    return Err(ReconcileError(e.into()))
-                                },
-                            }
-*/

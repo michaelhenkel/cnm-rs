@@ -12,7 +12,7 @@ use crate::resources::crpd::crpd;
 use crate::resources::ip_address;
 use crate::resources::pool;
 use crate::resources::{vrrp, resources, interface_group};
-use crate::resources::vrrp_group;
+use crate::resources::vrrp_group::{self, VrrpGroup};
 
 use crate::resources::interface_group::{
     InterfaceGroup,
@@ -193,6 +193,34 @@ impl InterfaceGroupController{
                                 ..Default::default()
                             })
                         }
+                        if let Err(e) = controllers::update_status(interface_group.clone(), ctx.client.clone()).await{
+                            return Err(e);
+                        }
+                    }
+                } 
+            },
+            Err(e) => return Err(e)
+        }
+
+        match controllers::list::<VrrpGroup>(namespace, ctx.client.clone(), Some(BTreeMap::from([
+            ("cnm.juniper.net/interfaceGroup".to_string(), name.clone()),
+        ]))).await{
+            Ok(res) => {
+                if let Some((child_list,_)) = res {
+                    let ref_list: Vec<core_v1::LocalObjectReference> = child_list.iter().map(|obj|{
+                        core_v1::LocalObjectReference{
+                            name: Some(obj.meta().name.as_ref().unwrap().clone()),
+                        }
+                    }).collect();
+                    if ref_list.len() > 0 {
+                        if let Some(status) = interface_group.status.as_mut(){
+                            status.vrrp_group_references = Some(ref_list);
+                        } else {
+                            interface_group.status = Some(InterfaceGroupStatus{
+                                vrrp_group_references: Some(ref_list),
+                                ..Default::default()
+                            })
+                        }
                         if let Err(e) = controllers::update_status(interface_group, ctx.client.clone()).await{
                             return Err(e);
                         }
@@ -201,6 +229,7 @@ impl InterfaceGroupController{
             },
             Err(e) => return Err(e)
         }
+
         return Ok(Action::await_change())
     }
     fn error_policy(_g: Arc<InterfaceGroup>, error: &ReconcileError, _ctx: Arc<Context>) -> Action {
@@ -235,6 +264,20 @@ impl Controller for InterfaceGroupController{
                         }
                     }
                     object_list.into_iter()
+                }
+            )
+            .watches(
+                Api::<VrrpGroup>::all(self.context.client.clone()),
+                Config::default(),
+                |vrrp_group| {
+                    info!("vrrp_group event in interface_group controller:");
+                    if let Some(labels) = &vrrp_group.meta().labels{
+                        if let Some(parent_group) = labels.get("cnm.juniper.net/interfaceGroup"){
+                            return Some(ObjectRef::<InterfaceGroup>::new(parent_group)
+                                .within(vrrp_group.meta().namespace.as_ref().unwrap()));
+                        }
+                    }
+                    None
                 }
             )
             .watches(

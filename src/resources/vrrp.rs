@@ -26,6 +26,7 @@ pub struct VrrpSpec {
     #[garde(skip)]
     pub interface_selector: InterfaceSelector,
     #[garde(skip)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_parent: Option<resources::Parent>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[garde(skip)]
