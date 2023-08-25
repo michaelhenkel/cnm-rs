@@ -6,7 +6,7 @@ use tonic::metadata::MetadataMap;
 use tracing::info;
 use super::common;
 use tracing::warn;
-use serde_xml_rs;
+use xml2json_rs::XmlBuilder;
 
 pub struct Client {
     client: junos_mgmt::management_client::ManagementClient<tonic::transport::Channel>,
@@ -55,8 +55,7 @@ impl Client{
     }
     pub async fn set(&mut self, config: common::Root, config_load_type: junos_mgmt::ConfigLoadType) -> anyhow::Result<()>{
         let json_config = serde_json::to_string(&config)?;
-        let json_value: serde_json::Value = serde_json::from_str(&json_config)?;
-        let xml_config = serde_xml_rs::to_string(&json_value)?;
+        let xml_config = get_xml(&json_config).await?;
         info!("committing xml config:\n{}", xml_config);
         let config_set_request = junos_mgmt::ConfigSetRequest{
             load_type: config_load_type.into(),
@@ -110,4 +109,10 @@ impl Client{
         info!("got empty config {:#?}", msg);
         Ok(None)
     }
+}
+
+async fn get_xml(config: &String) -> anyhow::Result<String> {
+    let mut xml_builder = XmlBuilder::default();
+    let xml_config = xml_builder.build_from_json_string(&config)?;
+    Ok(xml_config)
 }

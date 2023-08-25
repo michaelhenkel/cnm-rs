@@ -1,6 +1,10 @@
 use crate::controllers::controllers::{
     Controller, Context, ReconcileError, self
 };
+use crate::controllers::crpd::junos::interface;
+use crate::resources::interface::{InterfaceSpec, Interface};
+use crate::resources::interface_group::InterfaceGroupSpec;
+use crate::resources::resources::Parent;
 use crate::resources::routing_instance_group::RoutingInstanceGroup;
 use crate::resources::vrrp_group::VrrpGroup;
 use crate::resources::{
@@ -21,7 +25,7 @@ use kube::{
         reflector::ObjectRef
     },
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::*;
@@ -33,6 +37,7 @@ use k8s_openapi::{
     },
     apimachinery::pkg::apis::meta::v1 as meta_v1,
 };
+use regex::Regex;
 
 
 pub struct CrpdGroupController{
@@ -220,6 +225,61 @@ impl CrpdGroupController{
                                 }
                             },
                             Err(e) => return Err(e),
+                        }
+
+                        if let Some(interface_groups) = &crpd_group.spec.interface_groups{
+                            match controllers::list::<Crpd>(namespace, ctx.client.clone(), Some(BTreeMap::from([
+                                ("cnm.juniper.net/instanceSelector".to_string(), name.to_string())
+                            ]))).await{
+                                Ok(res) => {
+                                    if let Some((crpd_list,_)) = res{
+                                        let mut interface_map = HashSet::new();
+                                        for crpd in &crpd_list{
+                                            if let Some(status) = &crpd.status{
+                                                for (interface_name, _) in &status.interfaces{
+                                                    interface_map.insert(interface_name.to_string());
+                                                }
+                                            }
+                                        }
+                                        let mut matched_interfaces = Vec::new();
+                                        for interface_group_regexp in interface_groups{
+                                            match Regex::new(format!("{}", interface_group_regexp).as_str()){
+                                                Ok(re) => {
+                                                    for interface_name in &interface_map{
+                                                        if re.is_match(interface_name){
+                                                            matched_interfaces.push(interface_name.to_string())
+                                                        }
+                                                    }
+                                                },
+                                                Err(e) => return Err(ReconcileError(anyhow::anyhow!("regex error")))
+                                            }
+                                        }
+                                        for matched_interface in &matched_interfaces{
+                                            let interface_group_spec = InterfaceGroupSpec{
+                                                interface_name: matched_interface.clone(),
+                                                interface_template: InterfaceSpec{
+                                                    name: matched_interface.clone(),
+                                                    managed: true,
+                                                    instance_parent: Some(Parent{
+                                                        parent_type: resources::InstanceType::Crpd,
+                                                        reference: core_v1::LocalObjectReference { name: Some(name.clone()) }
+                                                    }),
+                                                    mac: None,
+                                                    mtu: None,
+                                                    families: None,
+                                                    vrrp: None
+                                                },
+                                            };
+                                            let mut interface_group = InterfaceGroup::new(format!("{}-{}-ig", name, matched_interface.clone()).as_str(), interface_group_spec);
+                                            interface_group.meta_mut().namespace = Some(namespace.clone());
+                                            if let Err(e) = controllers::create_or_update(interface_group, ctx.client.clone()).await{
+                                                return Err(e)
+                                            }
+                                        }
+                                    }
+                                },
+                                Err(e) => return Err(e)
+                            }
                         }
 
                         match controllers::update_status(crpd_group, ctx.client.clone()).await{

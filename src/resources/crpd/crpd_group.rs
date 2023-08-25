@@ -27,6 +27,9 @@ pub struct CrpdGroupSpec {
     pub replicas: i32,
     #[garde(skip)]
     pub crpd_template: CrpdSpec,
+    #[garde(skip)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interface_groups: Option<Vec<String>>
 }
 
 

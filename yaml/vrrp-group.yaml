@@ -10,4 +10,4 @@ spec:
           name: loopback-pool
     interfaceSelector:
       interfaceGroupParent:
-        name: ig1-lima0
+        name: crpd1-lima0-ig
